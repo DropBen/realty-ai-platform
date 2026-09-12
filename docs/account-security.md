@@ -31,3 +31,5 @@ Keep hosts synchronized to a trusted clock. A user who loses their password, mai
 Run `python -m pytest backend/tests/test_identity.py`. Tests cover verification gating, expiry/reuse, generic recovery responses, session revocation/ownership, password changes, MFA/recovery replay, MFA-preserving resets, failed-reauthentication rate limits and RFC vectors. Browser journeys and live SMTP acceptance are separately recorded in `verification.md`.
 
 References: [OWASP password recovery](https://cheatsheetseries.owasp.org/cheatsheets/Forgot_Password_Cheat_Sheet.html), [OWASP MFA](https://cheatsheetseries.owasp.org/cheatsheets/Multifactor_Authentication_Cheat_Sheet.html), [RFC 6238](https://www.rfc-editor.org/rfc/rfc6238).
+
+Organization deletion also requires current-password reauthentication and an unused factor for enrolled accounts; its dedicated attempt limit survives failed transactions. Recovery pages consume new hash links even when the browser is already on the recovery route, then remove the secret fragment.

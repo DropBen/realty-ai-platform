@@ -1,0 +1,77 @@
+{
+  "scope": "Short isolated functional load baseline with fictional data; not a capacity or production SLO certification.",
+  "database": "postgresql",
+  "virtual_users": 3,
+  "contacts": 3000,
+  "properties": 300,
+  "requests": 198,
+  "elapsed_seconds": 2.075,
+  "requests_per_second": 95.42,
+  "latency_ms": {
+    "p50": 26.55,
+    "p95": 49.66,
+    "max": 106.51
+  },
+  "errors": [],
+  "worker_completed_approved_tasks": true,
+  "cross_tenant_request_rejected": true,
+  "routes": {
+    "contact_search": {
+      "requests": 18,
+      "p50_ms": 25.75,
+      "p95_ms": 97.81
+    },
+    "briefing": {
+      "requests": 18,
+      "p50_ms": 40.37,
+      "p95_ms": 70.43
+    },
+    "analytics": {
+      "requests": 18,
+      "p50_ms": 24.38,
+      "p95_ms": 29.9
+    },
+    "properties": {
+      "requests": 18,
+      "p50_ms": 23.77,
+      "p95_ms": 29.44
+    },
+    "living_profile": {
+      "requests": 18,
+      "p50_ms": 43.44,
+      "p95_ms": 102.89
+    },
+    "structured_command": {
+      "requests": 18,
+      "p50_ms": 21.64,
+      "p95_ms": 27.18
+    },
+    "create_task": {
+      "requests": 18,
+      "p50_ms": 23.57,
+      "p95_ms": 29.45
+    },
+    "update_preferences": {
+      "requests": 18,
+      "p50_ms": 26.91,
+      "p95_ms": 35.48
+    },
+    "create_note": {
+      "requests": 18,
+      "p50_ms": 22.28,
+      "p95_ms": 25.42
+    },
+    "propose_task": {
+      "requests": 18,
+      "p50_ms": 26.46,
+      "p95_ms": 40.53
+    },
+    "approve_task": {
+      "requests": 18,
+      "p50_ms": 33.37,
+      "p95_ms": 41.7
+    }
+  },
+  "evidence_workflow": "https://github.com/DropBen/realty-ai-platform/actions/runs/34668452691",
+  "application_commit": "c552fac4fbf7f0b2deca60e993b030fbd8ef8e18"
+}

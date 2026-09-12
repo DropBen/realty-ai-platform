@@ -21,3 +21,9 @@ The worker records successful outcomes in the timeline, audit and usage tables. 
 AI usage charges attempted calls before transport and tracks returned token totals. Billing locks serialize quota reservation per organization on PostgreSQL. Structured search returns at most 50 records; meeting preparation uses bounded recent context and property candidates. Broader semantic retrieval, conversation memory beyond these records, calibrated learned intent scoring, relative-date interpretation, visual workflow editing, call transcription and OCR are future extensions.
 
 Specialized email, calendar, property and document behavior is represented by explicit services and job kinds. No general-purpose autonomous agent is allowed to invoke arbitrary tools or bypass approvals.
+
+## Evaluation and evidence hardening
+
+Extracted values must be supported by their exact source quote, including numeric shorthand such as 650k. Nearby but different amounts are rejected. Commitment titles derive from the quoted promise and remain proposed until an authorized person confirms an owner/deadline. Document entities keep exact value/quote/source identity; classification requires review with the current document hash. Summaries remain unverified analysis.
+
+Usage totals reject malformed, negative or extreme token counts. Quota reservations serialize in PostgreSQL and SQLite before transport; invalid evidence/schema stops a job without five repeated paid attempts. `evals/cases.json` plus `scripts/evaluate.py` provide 20 offline adversarial/regression cases; this does not assess live model precision or safety against every possible prompt.

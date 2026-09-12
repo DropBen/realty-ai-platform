@@ -21,3 +21,7 @@ Available-time recommendations consider recorded calendar intervals, appointment
 ## Validation and rollout
 
 HTTP contract tests cover OAuth state/replay, encryption, token refresh, full/incremental Gmail sync, cursor expiry, Calendar reset and ambiguous external calls. They do not replace a live OAuth consent test. Production access may require Google app verification and any review required for the selected scopes. Configure exact redirect URIs in each environment and never share demo and production tokens.
+
+## Timezones and synchronization safety
+
+Date-only all-day events use the calendar timezone, preserving 23/25-hour daylight-saving days. Explicit offsets disambiguate repeated times; nonexistent or ambiguous naive timestamps are rejected. Recurrence instance identity and original start metadata are retained, but recurrence-series editing and travel routing remain future scope. Local and approved external appointment writes serialize their conflict check within the workspace; Google can still change independently after synchronization. Imports checkpoint without advancing final cursors until completion; deduplication makes a resumed read safe. Failed connection/sync work is surfaced through job error codes and Settings. Live provider staging acceptance remains required.

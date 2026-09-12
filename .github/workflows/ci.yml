@@ -42,6 +42,9 @@ jobs:
       - run: python -m pip_audit -r requirements.lock --disable-pip --no-deps
   frontend:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        browser: [desktop, mobile]
     env:
       PYTHONPATH: backend
       APP_ORIGIN: http://localhost:8000
@@ -70,11 +73,11 @@ jobs:
           python -m uvicorn realty.main:app --host 127.0.0.1 --port 8000 --no-access-log > api.log 2>&1 &
           python -m realty.jobs > worker.log 2>&1 &
           for attempt in $(seq 1 30); do curl --fail http://localhost:8000/health/ready && break; sleep 1; done
-      - run: npm run test:e2e
+      - run: npm run test:e2e -- --project=${{ matrix.browser }}
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: browser-test-results
+          name: browser-test-results-${{ matrix.browser }}
           path: |
             playwright-report/
             test-results/

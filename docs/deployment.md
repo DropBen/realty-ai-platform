@@ -19,10 +19,12 @@ Use `infra/apps.bicep` with preprovisioned network/identity/storage/database res
 
 ## Monitoring
 
-`/health/live` reports process availability; `/health/ready` checks database connectivity. Structured JSON request logs contain request ID, status and duration. Worker logs use job/tenant IDs and stable failure codes. Audit, integration last-sync fields, usage records and Settings → Activity provide application diagnostics.
+`/health/live` reports process availability; `/health/ready` checks database connectivity and exact schema revision. Structured JSON request logs contain request ID, status and duration. Worker logs use job/tenant IDs and stable failure codes. Audit, integration last-sync fields, usage records and Settings → Activity provide application diagnostics.
 
-Alert on sustained API failures, database connectivity, dead jobs, delayed queued jobs, uncertain external actions and failed Google refresh. Export logs to Azure Log Analytics and add Application Insights/metrics as part of deployment wiring. A dedicated metrics exporter and distributed traces are not included.
+Alert on sustained API failures, database connectivity, dead jobs, delayed queued jobs, uncertain external actions and failed Google refresh. Export logs to Azure Log Analytics and add Application Insights/metrics as part of deployment wiring. An authenticated Prometheus endpoint and starter alert rules are included; distributed tracing and actual alert delivery remain deployment work. See [operations](operations.md).
 
-Start with one worker. Job leases last ten minutes; expensive imports may exceed that window and need operational limits or lease renewal before multi-worker scale. Keep PDF workers memory/CPU bounded and restrict egress. Reconcile uncertain external actions directly against the provider before creating another approval.
+Start with one worker. PostgreSQL job leases last ten minutes and renew every 30 seconds; stale attempts are fenced at flush/commit. Multi-worker production capacity still requires staging load validation. Keep PDF workers memory/CPU bounded and restrict egress. Reconcile uncertain external actions directly against the provider before creating another approval.
 
-Record RPO/RTO, backup retention, storage lifecycle and restore evidence before accepting customers. These operational properties cannot be established by source code alone.
+See [backup/restore](backup-restore.md) for the executed isolated drill, snapshot tooling and proposed one-hour RPO/four-hour RTO. Validate actual Azure recovery, retention and alert delivery before accepting customers. Source and local/CI results cannot establish cloud recovery guarantees.
+
+Production additionally requires verified-email gating and SMTP STARTTLS delivery. Map SMTP_PASSWORD and METRICS_TOKEN through Key Vault; configure SMTP_HOST, SMTP_PORT and verified MAIL_FROM as runtime settings. Check every value against [environment.md](environment.md).

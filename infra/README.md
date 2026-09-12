@@ -11,7 +11,7 @@ Provision separately in the chosen subscription:
 - Key Vault, secret versions, private connectivity, and least-privilege identity access.
 - DNS, TLS, ingress request limits, rate-limit protection and monitoring alerts.
 
-Pass Key Vault secret references for `DATABASE_URL`, `ENCRYPTION_KEY`, `STORAGE_CONNECTION_STRING`, and any configured Google, AI, Stripe secrets. The database URL must use the form `postgresql+psycopg://USER:PASSWORD@HOST/realty?sslmode=require`. The image's production configuration refuses demo mode, insecure cookies or SQLite.
+Pass Key Vault secret references for `DATABASE_URL`, `ENCRYPTION_KEY`, `STORAGE_CONNECTION_STRING`, SMTP_PASSWORD, METRICS_TOKEN, and any configured Google, AI, Stripe secrets. The database URL must use the form `postgresql+psycopg://USER:PASSWORD@HOST/realty?sslmode=require`. The image's production configuration refuses demo mode, insecure cookies or SQLite.
 
 Compile and preview without deploying:
 
@@ -23,3 +23,5 @@ az deployment group what-if --resource-group <staging-resource-group> --template
 Run `python -m alembic upgrade head` in a single controlled migration job against staging before rolling out the application. This repository does not run production migrations from every API replica. After staging verification and an approved release, deploy the same image digest to production.
 
 The Bicep template compiled successfully with Bicep CLI 0.47.16. It has not been validated against a real subscription or deployed. Cloud credentials and foundation resource IDs are intentionally absent. Do not interpret syntax validation as a successful Azure deployment.
+
+Set runtimeEnvironment entries for SMTP_HOST, SMTP_PORT, verified MAIL_FROM and (if used) SMTP_USERNAME. Production verification and STARTTLS are enabled by apps.bicep. Deploy and test the starter alerts.rules.yml in a real scraper/alert router; it is not automatically installed by Bicep. Operations and recovery instructions are in docs/operations.md and docs/backup-restore.md.

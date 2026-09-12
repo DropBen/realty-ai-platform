@@ -1,0 +1,32 @@
+# Starter Prometheus rules; configure scraping, routing and ownership before enabling.
+groups:
+  - name: realtyai
+    rules:
+      - alert: RealtyApiErrors
+        expr: sum(rate(realty_http_requests_total{status=~"5.."}[5m])) / clamp_min(sum(rate(realty_http_requests_total[5m])), 0.001) > 0.05
+        for: 5m
+        labels: {severity: critical}
+        annotations:
+          summary: RealtyAI API failure rate exceeds five percent
+          description: Check readiness and structured request logs; follow docs/operations.md.
+      - alert: RealtyWorkerUnavailable
+        expr: max(realty_worker_available) == 0
+        for: 2m
+        labels: {severity: critical}
+        annotations:
+          summary: No recent RealtyAI worker heartbeat
+          description: Check database/schema and worker deployment before restarting jobs.
+      - alert: RealtyQueueDelayed
+        expr: max(realty_queue_oldest_due_seconds) > 300
+        for: 5m
+        labels: {severity: warning}
+        annotations:
+          summary: RealtyAI due jobs have waited more than five minutes
+          description: Inspect worker health and provider errors; do not automatically replay external actions.
+      - alert: RealtyDeadJobs
+        expr: max(realty_jobs{status="dead"}) > 0
+        for: 10m
+        labels: {severity: warning}
+        annotations:
+          summary: RealtyAI jobs require operator review
+          description: Reconcile uncertain sends against providers before approving another operation.

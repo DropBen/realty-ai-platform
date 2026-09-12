@@ -1,24 +1,59 @@
-# Testing
+# Testing and reproducible evidence
 
-## Local commands
+Tests use fictional data. Backend fixtures create and drop their tables; `TEST_DATABASE_URL` must be disposable. Never aim browser, load or recovery drills at customer data. Tests use `respx` provider contracts, not live accounts.
 
-The root README lists complete verification commands. Backend fixtures create isolated tenant databases, override API/worker sessions, and remove test tables afterward. PostgreSQL tests require a disposable database URL and will destroy its tables. Do not reuse a development database containing work you want to keep.
+## Backend and build
 
-The suite covers:
+From the activated repository environment (`PYTHONPATH=backend` or editable package installed):
 
-- Account creation/login, CSRF/origin rejection, session headers, role restrictions and server validation.
-- Cross-tenant direct/list/profile/search/analytics access, composite foreign keys and writes.
-- Approval, concurrent review versions, tamper detection, worker reauthorization, idempotent tasks, snooze, expiration, guarded undo and missing provider failures.
-- Extraction without authoritative mutation, exact source evidence, conservative parsing and explainable matching.
-- OAuth PKCE/state replay, token encryption/refresh, Gmail full/incremental/expired sync, Calendar invalidation, provider timeouts and untrusted output.
-- Verified and duplicate Stripe events, canonical state updates, uploads/download isolation, invalid files, scheduling conflicts, database failures, retries/dead letters, export and deletion.
+```sh
+python -m ruff check backend scripts
+python -m ruff format --check backend scripts
+python -m mypy backend/realty
+python -m bandit -r backend/realty -ll -q
+python -m pytest -p no:cacheprovider --cov=realty --cov-report=xml
+python -m alembic upgrade head
+python -m alembic check
+python -m pip_audit -r requirements.lock --disable-pip --no-deps
+npm run lint
+npm run typecheck
+npm run format:check
+npm run build
+npm audit --audit-level=high
+```
 
-`respx` supplies provider HTTP contracts without contacting or sending to external recipients. Production credentials are not used in these tests.
+Coverage includes authentication policy on every API route; identity verification/reset/MFA/replay/session IDOR; CSRF and actual chunked body bounds; tenant lookups/relationships/role checks; action review/version/tampering/expiry/reauthorization/undo; duplicate jobs/webhooks and stale leases; provider failure/evidence/metering; commitments/reminders; DST/all-day/recurrence imports; listing conflicts/isolation; document rollback/delete/evidence and actual isolated PDF parsing; metrics and exact-schema readiness. The PostgreSQL-specific test verifies heartbeat renewal during a long dispatch. SQLite deliberately skips that multi-connection test.
 
-## Browser journeys
+## Browser and accessibility
 
-`e2e/workspace.spec.ts` covers desktop/mobile route loading, responsive width, contact creation, preferences/timeline, grounded command results, approval → worker → timeline, explicit unconfigured Google status and new-account isolation. Run with a seeded isolated demo API and worker at `E2E_BASE_URL` (default localhost:8000).
+Run a freshly migrated/seeded demo API and worker with `MAIL_BACKEND=outbox`, a generated encryption key and `APP_ORIGIN=http://localhost:8000`. Then:
 
-All 12 desktop/mobile journeys passed without retries in [Linux CI](https://github.com/DropBen/realty-ai-platform/actions/runs/34664439443). Dashboard screenshots were visually inspected. Each route is checked against the configured device width after data loads; failures attach rendered layout diagnostics. The build host could not launch Chrome because Windows IPC was unavailable, so browser execution is verified in CI rather than locally. Dedicated keyboard, screen-reader and broader browser acceptance remain release gates.
+```sh
+npx playwright install --with-deps chromium
+npm run test:e2e
+```
 
-Live Google consent, external sending, calendar mutations, real AI inference, Stripe test checkout, Blob storage and Azure are separate staging certification tests. They are not marked passed by an HTTP mock.
+The 18 configured tests cover desktop/mobile routes and width; contact/preferences/timeline; structured command; action approval→worker→timeline; explicit unconfigured Google; isolated signup; CSV preview/import/persistence; TOTP/recovery/session workflows; and axe WCAG A/AA/2.1 checks plus dialog initial/Escape/return focus. They use real HTTP/API state, not a mock UI. CI gives desktop and mobile their own freshly seeded database/API/worker; each Playwright project uses a single worker and normal rate limits. Repeated full runs against the same process can hit legitimate per-user/login limits; use a fresh isolated environment or wait for Retry-After. Do not weaken production limits to pass tests.
+
+Automated checks cover dashboard, contacts, security settings and a contact dialog. Screen-reader, Safari/Firefox, assistive-device, broader-content and real-user testing remain separate acceptance. This Windows host cannot initialize browser IPC; actual Chromium execution and screenshot evidence come from Linux CI.
+
+## Offline AI evaluations
+
+```sh
+python scripts/evaluate.py --output work/ai-evaluations.json
+```
+
+The versioned 20-case `evals/cases.json` corpus exercises unknown/negated/invalid facts, exact numeric evidence, hostile instructions, excluded protected attributes, forbidden action payloads and schema constraints. It measures deterministic validation rules, **not live model accuracy**. Live evaluation must add approved representative staging examples, expected facts/citations, adversarial prompts and human scoring before enabling model-backed production features.
+
+## Load baseline and recovery
+
+```sh
+python scripts/load_baseline.py --work-dir work --output work/load-sqlite.json
+python scripts/load_baseline.py --postgres --work-dir work --output work/load-postgres.json
+python scripts/recovery_drill.py --work-dir work --output work/recovery-sqlite.json
+python scripts/recovery_drill.py --postgres --work-dir work --output work/recovery-postgres.json
+```
+
+PostgreSQL requires separately created empty `realty_load_*` and `realty_drill_*` databases configured through `LOAD_DATABASE_URL`, `DRILL_DATABASE_URL` and `RESTORE_DATABASE_URL`. CI provisions them. Scripts start/stop their own API/worker processes and generate unique scratch directories. Load baseline uses three users, 3,000 contacts, 300 properties and 198 measured mixed requests, including approval and worker completion. It verifies results and tenant denial; it is too short/small to claim an SLO, saturation point or capacity. Recovery verifies real dump/restore plus documents and safe quarantine. See [backup and restore](backup-restore.md).
+
+[verification.md](verification.md) records actual results and commit/workflow links. CI also builds Docker and compiles Bicep. Neither operation proves an Azure deployment or real provider integration.
