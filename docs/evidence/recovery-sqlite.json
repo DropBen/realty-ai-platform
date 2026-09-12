@@ -1,7 +1,7 @@
 {
   "scope": "Executed isolated recovery using fictional data. No Azure recovery performed.",
   "database": "sqlite",
-  "duration_seconds": 0.187,
+  "duration_seconds": 0.061,
   "verified": true,
   "files_verified": 3,
   "rows_before_quarantine": {
@@ -45,5 +45,5 @@
   "tenant_isolation_verified": true,
   "existing_target_rejected": true,
   "checksum_corruption_rejected": true,
-  "schema_revision": "2375a43c78e9"
+  "schema_revision": "6bda8c204a71"
 }

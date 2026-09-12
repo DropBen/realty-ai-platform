@@ -18,7 +18,7 @@ Store UTC timestamps without timezone in SQL, normalize aware API input to UTC, 
 
 Contact archival is supported without losing history. Document/organization deletion is explicit. Audit tables are append-only by API design, not cryptographically immutable. A regulated archival/retention product would require additional storage and policy controls.
 
-Current head `2375a43c78e9` adds listing import metadata, calendar timezone/recurrence fields, commitment provenance/version, reviewed document analysis, expiring rate buckets, worker pulses and durable global storage cleanup. Identity migration `35b63b33b85a` adds verified-email state, encrypted MFA enrollment/secrets, one-use tokens/recovery codes and encrypted account mail. Existing users are not silently marked verified. API/worker readiness checks the exact head before work. Snapshot/restore and encryption-key requirements are in [backup-restore.md](backup-restore.md).
+Earlier migration `2375a43c78e9` adds listing import metadata, calendar timezone/recurrence fields, commitment provenance/version, reviewed document analysis, expiring rate buckets, worker pulses and durable global storage cleanup. Identity migration `35b63b33b85a` adds verified-email state, encrypted MFA enrollment/secrets, one-use tokens/recovery codes and encrypted account mail. Existing users are not silently marked verified. API/worker readiness checks the exact head before work. Snapshot/restore and encryption-key requirements are in [backup-restore.md](backup-restore.md).
 
 ## Authority migration: 6bda8c204a71
 

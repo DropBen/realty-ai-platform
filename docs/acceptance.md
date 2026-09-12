@@ -1,6 +1,6 @@
 # Acceptance and implementation state
 
-The [completion report](completion-report.md) contains the 25-area verification matrix, scores, genuine external blockers and launch checklist. The [verification record](verification.md) distinguishes executed checks from configured workflows. This application is ready for staged acceptance after those checks pass; it is not declared production-ready.
+The [project status](project-status.md) contains the current implementation matrix, priorities, genuine external blockers and readiness assessment. The [verification record](verification.md) distinguishes executed checks from configured workflows. This application is ready for staged acceptance after those checks pass; it is not declared production-ready.
 
 ## Core behavior implemented
 
@@ -17,7 +17,7 @@ Google consent, mailbox reads/sends, Calendar mutations; OpenAI model calls/qual
 
 ## Explicit launch limitations and future scope
 
-TOTP is opt-in, not organization-enforced or phishing-resistant. PostgreSQL RLS is not enabled; application scoping and composite keys are tested. Documents use isolated bounded parsing, not antivirus; scanned OCR and telephony/transcription remain provider interfaces. ML lead scoring, exhaustive semantic search, automatic relative-date interpretation, travel-time routing, recurrence-series editing, e-signatures, visual workflow editing and a licensed live MLS adapter remain future scope from the directive. CSV/JSON import is working; it is not advertised as MLS connectivity.
+TOTP is opt-in, not organization-enforced or phishing-resistant. PostgreSQL RLS is not enabled; application scoping and composite keys are tested. Documents use isolated bounded parsing, not antivirus; scanned OCR and telephony/transcription are not implemented. ML lead scoring, exhaustive semantic search, automatic relative-date interpretation, travel-time routing, recurrence-series editing, e-signatures, visual workflow editing and a licensed live MLS adapter remain future scope from the directive. CSV/JSON import is working; it is not advertised as MLS connectivity.
 
 Profile context is intentionally bounded. Listing conflicts protect manual edits and require reconciliation. Teams share organization-level CRM/mail visibility. Large exports over 20,000 rows/table require an operator-assisted job. Business retention/legal holds, enforcement of MFA and independent reviews require explicit launch policy. Metrics are basic process counters and queue gauges, not distributed traces. Short 3-user load tests do not certify production capacity. Recovery drills use small fictional datasets, not Azure disaster scenarios.
 

@@ -1,31 +1,24 @@
 # Verification evidence
 
-Evidence is tied to executed commits/workflows, not inferred from code presence. Tests use fictional data; provider contracts use controlled HTTP responses.
+Current application evidence: [CI run 34671651786](https://github.com/DropBen/realty-ai-platform/actions/runs/34671651786), commit `ce03214ebc588280b1dc82f01a26a6ed002f0d04`, September 12, 2026 UTC (September 11 America/New_York). All six jobs passed. Status and blockers: [project status](project-status.md). Earlier findings are retained as historical evidence in [completion-report.md](completion-report.md).
 
-## Local Windows execution
+## Local Windows
 
-- `python -m pytest -p no:cacheprovider --junitxml=../../work/final-tests.xml`: **110 passed, 1 PostgreSQL-only skip**, 75.79 seconds. Two upstream test-client deprecation warnings.
-- Focused identity/PDF/evaluation: **34 passed**. After calendar serialization: integration/document suite **16 passed**.
-- Ruff lint and format: passed (50 Python files). Mypy: passed (31 application modules). Bandit medium/high checks: passed.
-- ESLint, Prettier, TypeScript and production web build: passed. SQLite Alembic head and model drift: passed.
-- Offline AI evaluation: **20/20**; deterministic source/schema/authority checks, not live model accuracy.
-- Local recovery: verified files, row counts, schema, tenant separation, session invalidation, action quarantine and corruption/overwrite rejection. Local mixed load: 198 requests, three users, 3,000 contacts and 300 properties, zero errors. Exact JSON reports in `evidence/`.
-- Refreshed application: health/ready 200, demo login 200, briefing 200, worker available true.
-- Four starter alert rules parsed as YAML. They have not been installed in or validated by a live monitoring service.
+`python -m pytest -p no:cacheprovider --junitxml=../../work/autonomy-final-tests.xml`: **168 passed, 2 PostgreSQL-only skips**, 64.06 seconds. Two upstream test-client deprecation warnings. Ruff formatting/lint, mypy, Bandit medium/high checks, Prettier/ESLint, TypeScript/web production build, npm audit and SQLite migration/drift checks passed. The migration regression converts prior-schema OAuth/action rows and verifies history retention and downgrade/re-upgrade. Local pip-audit was blocked by network restrictions; both Linux jobs passed it.
 
-## Completed Linux CI
+The running demo database was backed up to the private work directory before migration, then upgraded to `6bda8c204a71`. API and worker restarted; `/health/live`, `/health/ready`, `/api/v1/config` and the built page returned 200. No provider credentials or live messages were used.
 
-[Run 34668978988](https://github.com/DropBen/realty-ai-platform/actions/runs/34668978988) verified final implementation/test-environment commit `fe07875269c4315dddf0f02302ca74d532ae5154`. All six jobs passed:
+## Linux CI
 
-- **111 PostgreSQL tests passed**, including actual concurrent lease heartbeat.
-- **110 SQLite tests passed, one intended PostgreSQL-only skip**.
-- **All 18 browser tests passed on the first attempt**: nine desktop and nine mobile. These include MFA/recovery/session workflows, axe/keyboard dialog checks, listing import and original CRM/action journeys. Each device has its own fresh database/API/worker. This resolved the legitimate shared-account rate-limit interference disclosed in historical run 34668757058; no production limits were weakened.
-- Python/frontend formatting, lint, types, Bandit, migration/drift, dependency audits, web build, Docker image and Bicep compilation passed. npm found zero vulnerabilities; Python reported no known vulnerabilities.
-- SQLite and PostgreSQL recovery/load drills and 20-case evaluation passed in their own CI job.
+- PostgreSQL: **170 passed**, 104.20 seconds, including actual concurrent preference writing and worker lease renewal.
+- SQLite: **168 passed, 2 intentional PostgreSQL-only skips**, 45.50 seconds.
+- Desktop/mobile Chromium: **20 passed on the first attempt**, ten per device, 31.7/32.2 seconds. Includes account security, CRM/action review, failed demo delivery, listing import, axe and keyboard focus. Device environments are isolated and normal application rate limits remain enabled.
+- Formatting, lint, type checking, Bandit, Python/JavaScript dependency audits, Alembic upgrade/drift, production build, Docker build and Bicep compilation passed.
+- Offline AI safety corpus: **20/20**. These deterministic examples measure validation/authority behavior, not model accuracy.
+- Both SQLite and PostgreSQL recovery/load drills passed. Refreshed JSON under `evidence/` is tied to the application commit by `authority-audit.json`.
 
+PostgreSQL load: 198 requests, three users, 3,000 contacts, 300 properties; zero errors; p50 21.95 ms, p95 48.01 ms, maximum 112.05 ms. Approved tasks completed and cross-tenant requests were rejected. Tiny fictional PostgreSQL restore: 0.703 seconds, three files verified, restored sessions revoked and actions quarantined. These are short functional checks, not cloud RPO/RTO or capacity certification.
 
-Specific PostgreSQL operational reports checked into `evidence/` originate from [run 34668452691](https://github.com/DropBen/realty-ai-platform/actions/runs/34668452691), application commit `c552fac4fbf7f0b2deca60e993b030fbd8ef8e18`: restore 0.736 seconds for tiny fictional data; load 198 requests, zero errors, p50 26.55 ms, p95 49.66 ms, max 106.51 ms, approved tasks completed and cross-tenant request rejected. The complete job passed, although unrelated browser/type checks in that historical run failed and were subsequently fixed.
+## Scope
 
-These are short functional baselines, not production capacity, SLO, Azure recovery or live-provider certification. Screenshot review confirmed desktop/mobile dashboard layout. Browser and Docker execution were not possible on this Windows host (IPC/daemon unavailable); Linux CI supplies that evidence. Azure provisioning, real Google/AI/Stripe/SMTP/Blob acceptance, screen-reader assessment and independent penetration testing were not executed.
-
-See [testing](testing.md) for commands and [completion report](completion-report.md) for the 25-area matrix, scores, blockers and launch gates. The subsequent documentation-only update records these completed results and the merge approval boundary. PR #1 is ready for review, but automatic approval review blocked merging without explicit user approval. `main` remains the initial README. Its current workflow/state is available on [PR #1](https://github.com/DropBen/realty-ai-platform/pull/1).
+Google/AI/Stripe HTTP is simulated in integration tests. The full realtor workflow uses real API/worker/database operations through source ingestion, reviewed preferences, approved email and timeline/audit persistence; only provider HTTP is replaced. No live Google, OpenAI, Stripe, SMTP, Blob or Azure acceptance occurred. Docker/browser checks ran in Linux CI because the local Windows daemon/IPC surfaces were unavailable. There are no failed required automated checks at this application head; external acceptance remains outstanding.

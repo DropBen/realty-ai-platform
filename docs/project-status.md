@@ -1,6 +1,6 @@
 # RealtyAI project status
 
-Canonical engineering status. Updated September 11, 2026 (verification timestamps may be September 12 UTC). Earlier completion reports are historical snapshots, not release certification.
+Canonical engineering status. Updated September 12, 2026; the application verification ran September 12 UTC (September 11 America/New_York). Earlier completion reports are historical snapshots, not release certification.
 
 ## Current milestone
 
@@ -33,7 +33,7 @@ Classification refers to the verified behavior in each row, not the feature name
 
 ## Completed systems and audit findings
 
-The implementation above retains working CRM, identity, evidence review, queue, recovery and demo foundations. During this audit, new regression cases reproduced invalid-date 500s, fail-open configuration, OAuth workspace/permission gaps, stale CRM writes, invalid undo and stuck approvals. The local backend suite now passes with these fixes; final Linux/browser/operational verification is pending.
+The implementation above retains working CRM, identity, evidence review, queue, recovery and demo foundations. During this audit, new regression cases reproduced invalid-date 500s, fail-open configuration, OAuth workspace/permission gaps, stale CRM writes, invalid undo and stuck approvals. The fixes passed local checks and all six Linux CI jobs at the application commit recorded below.
 
 ## Partially completed systems and known limitations
 
@@ -43,12 +43,12 @@ Provider acceptance, cloud runtime, sustained production-shaped load and indepen
 
 | Priority | Work | Status |
 |---|---|---|
-| P0 | Bind OAuth state to workspace and recheck current permission after network exchange | Fixed; local regressions pass, CI pending |
-| P0 | Reject unsafe configuration and preserve stored demo isolation across runtime changes | Fixed; local checks pass, CI pending |
-| P1 | Preserve newer preferences, validate undo and terminate invalid approvals visibly | Fixed; local workflow passes, PostgreSQL concurrency pending CI |
-| P1 | Reject malformed provider responses; require actual resource confirmation before recording delivery | Fixed; local adversarial tests pass, CI pending |
+| P0 | Bind OAuth state to workspace and recheck current permission after network exchange | Fixed; local and PostgreSQL/SQLite CI regressions pass |
+| P0 | Reject unsafe configuration and preserve stored demo isolation across runtime changes | Fixed; startup/demo isolation tests pass |
+| P1 | Preserve newer preferences, validate undo and terminate invalid approvals visibly | Fixed; workflow and PostgreSQL concurrent-writer test pass |
+| P1 | Reject malformed provider responses; require actual resource confirmation before recording delivery | Fixed; adversarial and full workflow tests pass |
 | P1 | Validate provider failures/reconnect and billing identity transitions | Fixed; reconnect and billing reconciliation contract tests pass |
-| P1 | Run complete automated suite, migration checks and CI/browser/operational gates | Local checks pass; Linux CI pending |
+| P1 | Run complete automated suite, migration checks and CI/browser/operational gates | Passed all six CI jobs; evidence below |
 | P1 | Live staged workflow acceptance with provider accounts | External dependency; exact steps below |
 | P2 | Sustained cloud load/recovery, alert delivery, independent assessment | Depends on staging and reviewers |
 | P3 | Multiple mailbox identities, live MLS, advanced recurrence/OCR/telephony | Defer until core integration acceptance establishes the next product need |
@@ -70,7 +70,24 @@ Enter secrets through the deployment secret mechanism, never chat or Git. Nonsec
 
 ## Tests
 
-Baseline before this audit: CI at `9537b2e4af6fea561d817114c4cd83b41ada5bf3` passed six jobs. Current local run: **168 passed, 2 skipped**, 64.06 seconds. The two intentional skips require PostgreSQL (heartbeat and concurrent preference writer). Ruff formatting/lint, mypy, Bandit, ESLint/Prettier, TypeScript/production build, npm audit and isolated migration upgrade/downgrade/drift checks passed. Two upstream test-client deprecation warnings remain. Linux CI will validate both PostgreSQL cases, all 20 browser cases, dependency audits, Docker/Bicep and recovery/load/evaluation drills; those results are pending for this change set.
+Baseline before this audit: CI at `9537b2e4af6fea561d817114c4cd83b41ada5bf3` passed six jobs. Current local run: **168 passed, 2 skipped**, 64.06 seconds. The two intentional skips require PostgreSQL (heartbeat and concurrent preference writer). Ruff formatting/lint, mypy, Bandit, ESLint/Prettier, TypeScript/production build, npm audit and isolated migration upgrade/downgrade/drift checks passed. Two upstream test-client deprecation warnings remain. [CI run 34671651786](https://github.com/DropBen/realty-ai-platform/actions/runs/34671651786) passed all six jobs at application commit `ce03214ebc588280b1dc82f01a26a6ed002f0d04`:
+
+| Check | Result | Evidence/limit |
+|---|---|---|
+| Formatting and lint | PASSED | Ruff, Prettier and ESLint |
+| Type checking | PASSED | mypy (31 application modules), TypeScript production build |
+| Unit/API/integration/security suite | PASSED | PostgreSQL **170 passed**, 104.20 seconds; SQLite **168 passed, 2 intentional skips**, 45.50 seconds. Category coverage shares the suite; totals are not added together as distinct cases. |
+| PostgreSQL concurrency | PASSED | Concurrent preference writer and renewable worker heartbeat executed |
+| Browser E2E/accessibility | PASSED | **20/20**, 10 desktop and 10 mobile, first attempt; real API/worker plus axe/keyboard cases |
+| Static security/dependency audits | PASSED | Bandit medium/high, pip-audit and npm audit; no known dependency vulnerabilities reported |
+| Database migrations | PASSED | Upgrade, drift, prior-row conversion and disposable downgrade/upgrade regression |
+| Production build and infrastructure | PASSED | Web build, Docker image build and Bicep compilation |
+| Operational drills | PASSED | SQLite and PostgreSQL backup/restore and mixed-load runs; 20/20 offline AI safety fixtures |
+| Live provider/cloud/user acceptance | BLOCKED EXTERNALLY | No real Google/OpenAI/Stripe/SMTP/Blob/Azure validation or real-realtor acceptance performed |
+
+The refreshed JSON reports in `docs/evidence/` come from this exact application run. PostgreSQL baseline: 198 requests, three users, 3,000 contacts, 300 properties, zero errors, p50 21.95 ms and p95 48.01 ms; approved worker tasks and cross-tenant rejection verified. Tiny fictional PostgreSQL recovery completed in 0.703 seconds and verified three files. These are functional baselines, not capacity or production recovery guarantees.
+
+Local pip-audit could not reach PyPI through the restricted sandbox; it passed in both Linux CI jobs. Browser IPC and Docker are unavailable locally, so Linux execution is identified explicitly. The local demo was backed up, upgraded to `6bda8c204a71`, restarted, and returned 200 for live/ready/config/page smoke checks.
 
 ## Deployment readiness
 
@@ -82,4 +99,6 @@ Incremental controls are tested, not a security certification. No LLM can author
 
 ## Recommended next steps
 
-Finish this hardening verification, then run the staged Google email-to-review-to-delivery workflow and live AI evaluation on approved test data. Fix observed integration discrepancies before expanding feature scope. Cloud deployment and billing acceptance follow once their independent credentials and budgets are available.
+**This hardening milestone is verified. The next useful validation is the staged Google email-to-review-to-delivery workflow and live AI evaluation on approved test data.** Fix observed integration discrepancies before expanding feature scope. Cloud deployment and billing acceptance follow once their independent credentials and budgets are available.
+
+The stopping point is external integration acceptance, not exhaustion of possible engineering work. Adding broader features before observing real provider behavior would not strengthen the core milestone. The next code work should address live acceptance findings; the account/credential prerequisites above are specific and independently unblockable.

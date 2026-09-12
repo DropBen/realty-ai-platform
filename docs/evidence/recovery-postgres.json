@@ -1,7 +1,7 @@
 {
   "scope": "Executed isolated recovery using fictional data. No Azure recovery performed.",
   "database": "postgresql",
-  "duration_seconds": 0.736,
+  "duration_seconds": 0.703,
   "verified": true,
   "files_verified": 3,
   "rows_before_quarantine": {
@@ -45,7 +45,5 @@
   "tenant_isolation_verified": true,
   "existing_target_rejected": true,
   "checksum_corruption_rejected": true,
-  "schema_revision": "2375a43c78e9",
-  "evidence_workflow": "https://github.com/DropBen/realty-ai-platform/actions/runs/34668452691",
-  "application_commit": "c552fac4fbf7f0b2deca60e993b030fbd8ef8e18"
+  "schema_revision": "6bda8c204a71"
 }
