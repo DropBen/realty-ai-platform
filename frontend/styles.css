@@ -1140,6 +1140,7 @@ li {
 .table-scroll {
   width: 100%;
   min-width: 0;
+  contain: inline-size layout paint;
   overflow-x: auto;
 }
 table {

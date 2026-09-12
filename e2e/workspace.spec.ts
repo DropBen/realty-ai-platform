@@ -57,6 +57,40 @@ test("demo dashboard, navigation and mobile fit", async ({
       viewport: window.innerWidth,
       document: document.documentElement.scrollWidth,
     }));
+    if (
+      layout.viewport > page.viewportSize()!.width ||
+      layout.document > layout.viewport
+    ) {
+      await testInfo.attach(`layout-${path.slice(1)}.json`, {
+        contentType: "application/json",
+        body: JSON.stringify(
+          await page.evaluate(() =>
+            Array.from(
+              document.querySelectorAll(
+                "body, #root, .app-shell, .main-shell, main, .section-card, .table-scroll, table, .pager",
+              ),
+            ).map((element) => {
+              const rect = element.getBoundingClientRect();
+              const style = getComputedStyle(element);
+              return {
+                tag: element.tagName,
+                class: element.className,
+                width: rect.width,
+                right: rect.right,
+                scrollWidth: element.scrollWidth,
+                overflow: style.overflow,
+                display: style.display,
+                minWidth: style.minWidth,
+                maxWidth: style.maxWidth,
+                contain: style.contain,
+              };
+            }),
+          ),
+          null,
+          2,
+        ),
+      });
+    }
     expect(
       layout.viewport,
       `${path}: layout viewport must fit the device`,
