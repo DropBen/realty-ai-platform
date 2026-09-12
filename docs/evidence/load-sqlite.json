@@ -1,0 +1,75 @@
+{
+  "scope": "Short isolated functional load baseline with fictional data; not a capacity or production SLO certification.",
+  "database": "sqlite",
+  "virtual_users": 3,
+  "contacts": 3000,
+  "properties": 300,
+  "requests": 198,
+  "elapsed_seconds": 1.608,
+  "requests_per_second": 123.13,
+  "latency_ms": {
+    "p50": 15.61,
+    "p95": 73.32,
+    "max": 153.24
+  },
+  "errors": [],
+  "worker_completed_approved_tasks": true,
+  "cross_tenant_request_rejected": true,
+  "routes": {
+    "contact_search": {
+      "requests": 18,
+      "p50_ms": 12.26,
+      "p95_ms": 72.59
+    },
+    "briefing": {
+      "requests": 18,
+      "p50_ms": 23.92,
+      "p95_ms": 63.85
+    },
+    "analytics": {
+      "requests": 18,
+      "p50_ms": 13.82,
+      "p95_ms": 47.35
+    },
+    "properties": {
+      "requests": 18,
+      "p50_ms": 15.7,
+      "p95_ms": 39.61
+    },
+    "living_profile": {
+      "requests": 18,
+      "p50_ms": 27.88,
+      "p95_ms": 39.73
+    },
+    "structured_command": {
+      "requests": 18,
+      "p50_ms": 13.9,
+      "p95_ms": 53.5
+    },
+    "create_task": {
+      "requests": 18,
+      "p50_ms": 15.5,
+      "p95_ms": 74.05
+    },
+    "update_preferences": {
+      "requests": 18,
+      "p50_ms": 12.25,
+      "p95_ms": 80.37
+    },
+    "create_note": {
+      "requests": 18,
+      "p50_ms": 11.12,
+      "p95_ms": 91.99
+    },
+    "propose_task": {
+      "requests": 18,
+      "p50_ms": 10.89,
+      "p95_ms": 45.07
+    },
+    "approve_task": {
+      "requests": 18,
+      "p50_ms": 14.33,
+      "p95_ms": 30.6
+    }
+  }
+}

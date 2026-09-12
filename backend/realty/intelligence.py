@@ -189,7 +189,9 @@ def extract_demo(text: str) -> Extraction:
         ("bedrooms", r"(\d+)\s*(?:bedroom|bed\b)"),
     ]:
         match = re.search(pattern, text, re.I)
-        if match:
+        if match and not re.search(
+            r"\b(?:not|previous|old|example|maybe)\b|-[\s$]*\d", match.group(0), re.I
+        ):
             amount = int(match.group(1).replace(",", ""))
             if field == "budget_max" and match.group(2):
                 amount *= 1000
@@ -204,6 +206,20 @@ def extract_demo(text: str) -> Extraction:
             )
         )
     return Extraction(summary=text[:300], facts=facts, commitments=commitments[:10])
+
+
+def evidence_supports_value(value: str | int | float, quote: str) -> bool:
+    if isinstance(value, str):
+
+        def normalize(text: str) -> str:
+            return re.sub(r"[\s_-]+", " ", text).strip().casefold()
+
+        return normalize(value) in normalize(quote)
+    amounts = []
+    for match in re.finditer(r"(?<![\w.])(\d[\d,]*(?:\.\d+)?)\s*([kKmM])?\b", quote):
+        multiplier = {"k": 1000, "m": 1_000_000}.get((match.group(2) or "").lower(), 1)
+        amounts.append(float(match.group(1).replace(",", "")) * multiplier)
+    return value in amounts
 
 
 def analyze_email(db: Session, actor: Principal, message: Communication) -> list[AIAction]:
@@ -230,11 +246,20 @@ def analyze_email(db: Session, actor: Principal, message: Communication) -> list
     assert isinstance(result, Extraction)
     proposals = []
     for item in result.facts:
-        if item.field not in PreferenceInput.model_fields or item.quote not in message.body:
+        if (
+            item.field not in PreferenceInput.model_fields
+            or item.quote not in message.body
+            or not evidence_supports_value(item.value, item.quote)
+        ):
             raise DomainError(
                 "unsupported_evidence", "An extracted fact did not have valid source evidence.", 422
             )
-        checked = PreferenceInput.model_validate({item.field: item.value})
+        try:
+            checked = PreferenceInput.model_validate({item.field: item.value})
+        except ValidationError as exc:
+            raise DomainError(
+                "unsupported_evidence", "An extracted value did not match its field type.", 422
+            ) from exc
         changes = checked.model_dump(exclude_unset=True)
         db.add(
             Fact(
@@ -277,7 +302,7 @@ def analyze_email(db: Session, actor: Principal, message: Communication) -> list
                 org_id=actor.org_id,
                 contact_id=message.contact_id,
                 responsible_user=actor.user_id if message.direction == "outbound" else None,
-                title=commitment.title,
+                title=commitment.quote[:250],
                 quote=commitment.quote,
                 source_id=message.id,
                 confidence=commitment.confidence,
@@ -296,9 +321,9 @@ def analyze_email(db: Session, actor: Principal, message: Communication) -> list
                     source_id=message.id,
                     confidence=commitment.confidence,
                     payload={
-                        "title": commitment.title
+                        "title": commitment.quote[:250]
                         if message.direction == "outbound"
-                        else f"Follow up on client commitment: {commitment.title}"[:250],
+                        else f"Follow up on client commitment: {commitment.quote}"[:250],
                         "contact_id": message.contact_id,
                         "assigned_to": actor.user_id,
                     },

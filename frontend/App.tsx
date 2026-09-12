@@ -478,6 +478,7 @@ function Shell({ session }: { session: Session }) {
             <div className="topbar-right">
               <button
                 className="command-trigger"
+                aria-label="Search or ask anything"
                 onClick={() => setPalette(true)}
               >
                 <Search size={17} />
@@ -568,6 +569,7 @@ function Shell({ session }: { session: Session }) {
             <input
               autoFocus
               placeholder="Search pages or ask about your business…"
+              aria-label="Search pages or ask about your business"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />

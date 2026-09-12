@@ -221,3 +221,15 @@ def test_totp_matches_rfc6238_vectors():
         (2000000000, "69279037"),
     ]:
         assert identity.totp_code(key, seconds // 30, 8) == expected
+
+
+def test_organization_deletion_requires_current_factor(client, account, account_mail):
+    _, _, codes = enroll(client)
+    body = {
+        "organization_name": account["organization"]["name"],
+        "password": "secure-password-123!",
+    }
+    assert client.post("/api/v1/account/delete", json=body).status_code == 401
+    result = client.post("/api/v1/account/delete", json={**body, "code": codes[0]})
+    assert result.status_code == 200, result.text
+    assert client.get("/api/v1/auth/me").status_code == 401

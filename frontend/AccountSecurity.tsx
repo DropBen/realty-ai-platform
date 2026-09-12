@@ -378,15 +378,26 @@ export function VerificationRequired({ email }: { email: string }) {
 }
 
 export function AccountAccess() {
-  const [link] = useState(() => {
+  const [link, setLink] = useState(() => {
     const params = new URLSearchParams(window.location.hash.slice(1));
     const result = { reset: params.get("reset"), verify: params.get("verify") };
     return result;
   });
-  useEffect(() => {
-    window.history.replaceState(null, "", window.location.pathname);
-  }, []);
   const [done, setDone] = useState(false);
+  useEffect(() => {
+    const consumeLink = () => {
+      const params = new URLSearchParams(window.location.hash.slice(1));
+      const next = { reset: params.get("reset"), verify: params.get("verify") };
+      if (next.reset || next.verify) {
+        setLink(next);
+        setDone(false);
+      }
+      window.history.replaceState(null, "", window.location.pathname);
+    };
+    consumeLink();
+    window.addEventListener("hashchange", consumeLink);
+    return () => window.removeEventListener("hashchange", consumeLink);
+  }, []);
   const { busy, run } = useAction();
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();

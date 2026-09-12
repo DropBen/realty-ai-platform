@@ -22,7 +22,7 @@ jobs:
           POSTGRES_DB: realty_test
           POSTGRES_USER: realty
           POSTGRES_PASSWORD: test-only
-        ports: ['5432:5432']
+        ports: ["5432:5432"]
         options: --health-cmd "pg_isready -U realty -d realty_test" --health-interval 5s --health-retries 10
     env:
       PYTHONPATH: backend
@@ -30,10 +30,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
-        with: {python-version: '3.12', cache: pip}
+        with: { python-version: "3.12", cache: pip }
       - run: pip install -r requirements.lock
-      - run: python -m ruff check backend
-      - run: python -m ruff format --check backend
+      - run: python -m ruff check backend scripts
+      - run: python -m ruff format --check backend scripts
       - run: python -m mypy backend/realty
       - run: python -m bandit -r backend/realty -ll -q
       - run: python -m pytest --cov=realty --cov-report=xml
@@ -45,14 +45,14 @@ jobs:
     env:
       PYTHONPATH: backend
       APP_ORIGIN: http://localhost:8000
-      CI: 'true'
+      CI: "true"
       MAIL_BACKEND: outbox
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        with: {node-version: '24', cache: npm}
+        with: { node-version: "24", cache: npm }
       - uses: actions/setup-python@v5
-        with: {python-version: '3.12', cache: pip}
+        with: { python-version: "3.12", cache: pip }
       - run: npm ci
       - run: pip install -r requirements.lock
       - run: npm run lint
@@ -86,3 +86,45 @@ jobs:
       - uses: actions/checkout@v4
       - run: docker build -t realtyai:verify .
       - run: az bicep build --file infra/apps.bicep --outfile /tmp/realty-template.json
+
+  operational-drills:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: realty
+          POSTGRES_USER: realty
+          POSTGRES_PASSWORD: test-only
+        ports: ["5432:5432"]
+        options: --health-cmd "pg_isready -U realty -d realty" --health-interval 5s --health-retries 10
+    env:
+      PYTHONPATH: backend
+      PG_BIN_DIR: /usr/lib/postgresql/16/bin
+      DRILL_DATABASE_URL: postgresql+psycopg://realty:test-only@localhost:5432/realty_drill_source
+      RESTORE_DATABASE_URL: postgresql+psycopg://realty:test-only@localhost:5432/realty_drill_restore
+      LOAD_DATABASE_URL: postgresql+psycopg://realty:test-only@localhost:5432/realty_load_ci
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12", cache: pip }
+      - run: pip install -r requirements.lock
+      - run: sudo apt-get update && sudo apt-get install -y postgresql-client-16
+      - name: Create isolated drill databases
+        run: |
+          python - <<'PY'
+          import psycopg
+          with psycopg.connect("host=localhost user=realty password=test-only dbname=realty", autocommit=True) as conn:
+              for name in ["realty_drill_source", "realty_drill_restore", "realty_load_ci"]:
+                  conn.execute(psycopg.sql.SQL("CREATE DATABASE {}").format(psycopg.sql.Identifier(name)))
+          PY
+      - run: python scripts/evaluate.py --output evidence/ai-evaluations.json
+      - run: python scripts/recovery_drill.py --work-dir work --output evidence/recovery-sqlite.json
+      - run: python scripts/recovery_drill.py --postgres --work-dir work --output evidence/recovery-postgres.json
+      - run: python scripts/load_baseline.py --work-dir work --output evidence/load-sqlite.json
+      - run: python scripts/load_baseline.py --postgres --work-dir work --output evidence/load-postgres.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: operational-evidence
+          path: evidence/

@@ -1,7 +1,7 @@
 from typing import Any, Literal
 
-from fastapi import APIRouter, Depends, Response
-from pydantic import EmailStr, Field
+from fastapi import APIRouter, Depends, Request, Response
+from pydantic import ConfigDict, EmailStr, Field
 from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
@@ -30,8 +30,10 @@ class MemberInput(Input):
 
 
 class DeleteInput(Input):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=False)
     organization_name: str = Field(max_length=160)
     password: str = Field(max_length=128)
+    code: str = Field(default="", max_length=40)
 
 
 @router.get("/members")
@@ -148,12 +150,17 @@ def export(
 @router.post("/delete")
 def delete_account(
     body: DeleteInput,
+    request: Request,
     response: Response,
     actor: Principal = Depends(principal),
     db: Session = Depends(get_db, scope="function"),
 ) -> dict[str, bool]:
     actor.require("delete_org")
-    user, org = db.get(User, actor.user_id), db.get(Organization, actor.org_id)
+    from realty import identity
+    from realty.api_identity import entry_limit
+
+    entry_limit(db, request, "organization_delete", actor.user_id)
+    user, org = identity.locked_user(db, actor.user_id), db.get(Organization, actor.org_id)
     if (
         not user
         or not org
@@ -161,6 +168,8 @@ def delete_account(
         or not verify_password(body.password, user.password_hash)
     ):
         raise DomainError("confirmation_failed", "Organization name or password is incorrect.", 403)
+    if user.mfa_ciphertext:
+        identity.verify_factor(db, user, body.code)
     if db.scalar(select(Integration).where(Integration.status == "connected")):
         raise DomainError(
             "disconnect_required",

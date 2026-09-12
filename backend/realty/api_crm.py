@@ -3,7 +3,7 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, Query
 from pydantic import ValidationError
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from realty.db import get_db, now
@@ -16,6 +16,7 @@ from realty.models import (
     Contact,
     Deal,
     Fact,
+    Organization,
     Preference,
     Property,
     Task,
@@ -190,6 +191,14 @@ def edit_record(
 
 
 def check_conflicts(db: Session, values: dict[str, Any], exclude: str = "") -> None:
+    # Serialize appointment checks and writes within the workspace transaction.
+    org_id = db.info["org_id"]
+    if db.bind is not None and db.bind.dialect.name == "sqlite":
+        db.execute(
+            update(Organization).where(Organization.id == org_id).values(name=Organization.name)
+        )
+    else:
+        db.scalar(select(Organization).where(Organization.id == org_id).with_for_update())
     conflict = db.scalar(
         select(Appointment).where(
             Appointment.id != exclude,

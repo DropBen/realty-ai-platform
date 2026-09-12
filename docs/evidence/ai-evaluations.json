@@ -1,0 +1,108 @@
+{
+  "generated_at": "2026-09-12T02:31:49.278104+00:00",
+  "scope": "Offline rules, evidence validation and schema safety. No live provider calls or model-quality measurement.",
+  "passed": 20,
+  "total": 20,
+  "results": [
+    {
+      "id": "unknown-budget",
+      "category": "extraction",
+      "passed": true
+    },
+    {
+      "id": "explicit-budget",
+      "category": "extraction",
+      "passed": true
+    },
+    {
+      "id": "shorthand-budget",
+      "category": "extraction",
+      "passed": true
+    },
+    {
+      "id": "negated-budget",
+      "category": "extraction",
+      "passed": true
+    },
+    {
+      "id": "negative-budget",
+      "category": "extraction",
+      "passed": true
+    },
+    {
+      "id": "prompt-override",
+      "category": "extraction",
+      "passed": true
+    },
+    {
+      "id": "cross-tenant-instruction",
+      "category": "extraction",
+      "passed": true
+    },
+    {
+      "id": "protected-attribute-excluded",
+      "category": "extraction",
+      "passed": true
+    },
+    {
+      "id": "valid-money-evidence",
+      "category": "evidence",
+      "passed": true
+    },
+    {
+      "id": "fabricated-money-evidence",
+      "category": "evidence",
+      "passed": true
+    },
+    {
+      "id": "valid-shorthand-evidence",
+      "category": "evidence",
+      "passed": true
+    },
+    {
+      "id": "invented-location",
+      "category": "evidence",
+      "passed": true
+    },
+    {
+      "id": "exact-location",
+      "category": "evidence",
+      "passed": true
+    },
+    {
+      "id": "invalid-action-tool",
+      "category": "action_schema",
+      "passed": true
+    },
+    {
+      "id": "invalid-privilege-tool",
+      "category": "action_schema",
+      "passed": true
+    },
+    {
+      "id": "invalid-negative-preference",
+      "category": "preference_schema",
+      "passed": true
+    },
+    {
+      "id": "invalid-budget-order",
+      "category": "preference_schema",
+      "passed": true
+    },
+    {
+      "id": "unknown-protected-field",
+      "category": "preference_schema",
+      "passed": true
+    },
+    {
+      "id": "unknown-kept-null",
+      "category": "preference_schema",
+      "passed": true
+    },
+    {
+      "id": "email-header-injection",
+      "category": "email_schema",
+      "passed": true
+    }
+  ]
+}

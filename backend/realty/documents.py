@@ -1,15 +1,16 @@
 import hashlib
-import io
+import json
 import logging
+import os
+import subprocess
+import sys
 from datetime import timedelta
 from pathlib import Path
-from typing import Literal, Protocol, cast
+from typing import Literal, Protocol
 
 from azure.core.exceptions import ResourceNotFoundError
 from azure.storage.blob import BlobServiceClient
 from pydantic import Field
-from pypdf import PdfReader
-from pypdf.generic import DictionaryObject
 from sqlalchemy import event, select
 from sqlalchemy.orm import Session
 
@@ -123,13 +124,26 @@ def upload(
 
 def extract_pdf(db: Session, document: Document) -> None:
     try:
-        reader = PdfReader(io.BytesIO(storage().get(document.storage_key)), strict=True)
-        if reader.is_encrypted or len(reader.pages) > 100:
-            raise ValueError("Encrypted or oversized PDF")
-        root = cast(DictionaryObject, reader.trailer["/Root"])
-        if "/OpenAction" in root or "/AA" in root:
-            raise ValueError("Active PDF content")
-        document.text = "\n".join(page.extract_text()[:20000] for page in reader.pages)[:100000]
+        # The parser has no database/provider environment and is killed after 30 seconds.
+        environment = {
+            key: value
+            for key, value in os.environ.items()
+            if key.upper() in {"SYSTEMROOT", "WINDIR", "TEMP", "TMP", "PATH"}
+        }
+        result = subprocess.run(
+            [sys.executable, "-I", str(Path(__file__).with_name("pdf_extract.py"))],
+            input=storage().get(document.storage_key),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            timeout=30,
+            check=True,
+            env=environment,
+            creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
+        )
+        parsed = json.loads(result.stdout)
+        if not isinstance(parsed, dict) or not isinstance(parsed.get("text"), str):
+            raise ValueError("Invalid parser result")
+        document.text = parsed["text"][:100000]
         document.status = "extracted" if document.text.strip() else "ocr_required"
         db.add(Usage(org_id=document.org_id, metric="documents_processed", source_id=document.id))
     except Exception:

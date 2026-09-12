@@ -284,6 +284,8 @@ def tick() -> bool:
                 in {
                     "external_uncertain",
                     "ai_unconfigured",
+                    "ai_invalid_response",
+                    "unsupported_evidence",
                     "google_unconfigured",
                     "job_authorization",
                     "not_approved",

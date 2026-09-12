@@ -319,6 +319,16 @@ function Settings() {
                 autoComplete="current-password"
               />
             </Field>
+            {session.user.mfa_enabled && (
+              <Field label="Authenticator or recovery code">
+                <input
+                  name="code"
+                  autoComplete="one-time-code"
+                  required
+                  maxLength={40}
+                />
+              </Field>
+            )}
             <Button type="submit" variant="danger" disabled={busy}>
               Permanently delete organization
             </Button>
