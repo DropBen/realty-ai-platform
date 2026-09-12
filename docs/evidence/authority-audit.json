@@ -1,19 +1,22 @@
 {
-  "application_commit": "ce03214ebc588280b1dc82f01a26a6ed002f0d04",
-  "ci_run_id": 34671651786,
-  "ci_url": "https://github.com/DropBen/realty-ai-platform/actions/runs/34671651786",
-  "schema_revision": "6bda8c204a71",
+  "application_commit": "8e6b6f6b20c34396361b9a708ff5a8724760d45f",
+  "ci_run_id": 34674184755,
+  "ci_url": "https://github.com/DropBen/realty-ai-platform/actions/runs/34674184755",
+  "schema_revision": "9f24a781c6de",
   "backend_postgres": {
-    "passed": 170,
+    "passed": 198,
     "skipped": 0
   },
   "backend_sqlite": {
-    "passed": 168,
-    "skipped": 2
+    "passed": 195,
+    "skipped": 3
+  },
+  "frontend_unit": {
+    "passed": 12
   },
   "browser": {
-    "desktop": 10,
-    "mobile": 10,
+    "desktop": 13,
+    "mobile": 13,
     "retried": 0
   },
   "offline_ai_cases": 20,

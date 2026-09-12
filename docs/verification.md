@@ -1,26 +1,29 @@
 # Verification evidence
 
-Continuation audit in progress: local 191 passed/three PostgreSQL-only skips, three additional key-rotation regressions, and 12 frontend unit tests passed. Combined CI is pending. The run described below is the earlier baseline; it does not certify the continuation changes.
+Application commit 8e6b6f6b20c34396361b9a708ff5a8724760d45f passed all six jobs in [CI run 34674184755](https://github.com/DropBen/realty-ai-platform/actions/runs/34674184755), September 12, 2026 UTC. [Project status](project-status.md) is canonical; earlier completion reports are historical.
 
-Current application evidence: [CI run 34671651786](https://github.com/DropBen/realty-ai-platform/actions/runs/34671651786), commit `ce03214ebc588280b1dc82f01a26a6ed002f0d04`, September 12, 2026 UTC (September 11 America/New_York). All six jobs passed. Status and blockers: [project status](project-status.md). Earlier findings are retained as historical evidence in [completion-report.md](completion-report.md).
+## Executed checks
 
-## Local Windows
+- PostgreSQL: 198 passed, 124.73s, including independent preference writers, worker lease renewal and simultaneous sync reservations.
+- SQLite CI: 195 passed, three intentional PostgreSQL-only skips, 31.46s.
+- Windows local final suite: 195 passed, three skips, 65.32s.
+- Frontend unit: 12 passed. Desktop/mobile E2E: 26 passed on the first attempt, 13 per device, 43.1s/42.2s. Includes account security, approval withdrawal, labelled draft editing with axe, proxy-error recovery, CRM, listing imports and keyboard focus.
+- Ruff/Prettier/ESLint, mypy (32 modules), TypeScript, Bandit medium/high, pip-audit/npm audit, migration upgrade/drift and regression, web/Docker builds and Bicep compile all passed.
+- Offline AI corpus: 20/20. Real model accuracy remains unmeasured.
+- SQLite/PostgreSQL load and recovery drills passed. The JSON reports in evidence/ are from this run; authority-audit.json binds them to the application revision.
 
-`python -m pytest -p no:cacheprovider --junitxml=../../work/autonomy-final-tests.xml`: **168 passed, 2 PostgreSQL-only skips**, 64.06 seconds. Two upstream test-client deprecation warnings. Ruff formatting/lint, mypy, Bandit medium/high checks, Prettier/ESLint, TypeScript/web production build, npm audit and SQLite migration/drift checks passed. The migration regression converts prior-schema OAuth/action rows and verifies history retention and downgrade/re-upgrade. Local pip-audit was blocked by network restrictions; both Linux jobs passed it.
+Two upstream test-client deprecations and GitHub action-runtime deprecation notices remain. No required automated check is failing at this application revision.
 
-The running demo database was backed up to the private work directory before migration, then upgraded to `6bda8c204a71`. API and worker restarted; `/health/live`, `/health/ready`, `/api/v1/config` and the built page returned 200. No provider credentials or live messages were used.
+## Failed checks that were corrected
 
-## Linux CI
+The initial review regressions reproduced eight failures before implementation. The first browser run found an invalid explicit-role selector for a native dialog and a toast fixture assumption. The next run exceeded the unchanged user rate limit because all expanded journeys shared one demo identity. The final run uses a separate review-fixture account and passes all browser cases without retries; security limits remain enabled.
 
-- PostgreSQL: **170 passed**, 104.20 seconds, including actual concurrent preference writing and worker lease renewal.
-- SQLite: **168 passed, 2 intentional PostgreSQL-only skips**, 45.50 seconds.
-- Desktop/mobile Chromium: **20 passed on the first attempt**, ten per device, 31.7/32.2 seconds. Includes account security, CRM/action review, failed demo delivery, listing import, axe and keyboard focus. Device environments are isolated and normal application rate limits remain enabled.
-- Formatting, lint, type checking, Bandit, Python/JavaScript dependency audits, Alembic upgrade/drift, production build, Docker build and Bicep compilation passed.
-- Offline AI safety corpus: **20/20**. These deterministic examples measure validation/authority behavior, not model accuracy.
-- Both SQLite and PostgreSQL recovery/load drills passed. Refreshed JSON under `evidence/` is tied to the application commit by `authority-audit.json`.
+## Operations and local runtime
 
-PostgreSQL load: 198 requests, three users, 3,000 contacts, 300 properties; zero errors; p50 21.95 ms, p95 48.01 ms, maximum 112.05 ms. Approved tasks completed and cross-tenant requests were rejected. Tiny fictional PostgreSQL restore: 0.703 seconds, three files verified, restored sessions revoked and actions quarantined. These are short functional checks, not cloud RPO/RTO or capacity certification.
+PostgreSQL functional workload: 198 requests, three users, 3,000 contacts, 300 properties, zero errors, p50 26.69ms/p95 51.99ms/max 145.82ms. Approved tasks and cross-tenant rejection passed. Tiny PostgreSQL recovery: 0.827s, three verified files, sessions revoked and actions quarantined. These are not production capacity or recovery guarantees.
 
-## Scope
+The local demo was quiesced and backed up; SQLite integrity check passed. Upgrade to 9f24a781c6de retained eight contacts. Restarted API/worker returned 200 for /health/live, /health/ready, /api/v1/config and the production-built page. A separate empty local acceptance database and ignored private environment profile were prepared; no credentials were supplied or existing key rotated.
 
-Google/AI/Stripe HTTP is simulated in integration tests. The full realtor workflow uses real API/worker/database operations through source ingestion, reviewed preferences, approved email and timeline/audit persistence; only provider HTTP is replaced. No live Google, OpenAI, Stripe, SMTP, Blob or Azure acceptance occurred. Docker/browser checks ran in Linux CI because the local Windows daemon/IPC surfaces were unavailable. There are no failed required automated checks at this application head; external acceptance remains outstanding.
+## Scope limits
+
+Provider integration tests replace only HTTP while executing real API/worker/database operations through ingestion, evidence, review, approval, delivery records and audit/timeline. Simulations do not prove live Google/OpenAI/Stripe/SMTP/Blob or Azure behavior. Browser/container checks ran on Linux because local Windows IPC/daemon support was unavailable. The next required validation is the [isolated live workflow](human-actions.md).

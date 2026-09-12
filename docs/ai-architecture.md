@@ -16,6 +16,8 @@ The action registry validates typed payloads for CRM updates, task creation, ext
 
 The worker records successful outcomes in the timeline, audit and usage tables. Uncertain external results are never resent automatically. An operator must inspect the provider and reconcile the result before preparing another action. Review outcomes are retained for future evaluation; no automated model retraining is claimed.
 
+Queued approvals can also be withdrawn or edited until execution starts; editing clears authority and requires a new review. Worker claims compare the observed status, version, approver and digest. Calendar changes additionally bind local event state and the imported provider ETag. Email analysis conditionally claims the unchanged source after inference so overlapping requests record only one extraction; conflicting duplicate output fields roll back the result.
+
 ## Limits and extensions
 
 AI usage charges attempted calls before transport and tracks returned token totals. Billing locks serialize quota reservation per organization on PostgreSQL. Structured search returns at most 50 records; meeting preparation uses bounded recent context and property candidates. Broader semantic retrieval, conversation memory beyond these records, calibrated learned intent scoring, relative-date interpretation, visual workflow editing, call transcription and OCR are future extensions.

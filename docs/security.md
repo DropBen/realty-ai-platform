@@ -34,4 +34,6 @@ Account-specific controls and MFA policy are in [account security](account-secur
 
 ## Additional audit controls
 
+The continuation adds conditional approval withdrawal/execution, contact/timeline binding, source claims for extraction, provider ETag preconditions, active sync reservations and guarded operator retry. Application-encrypted values have a quiesced transactional rotation command with dry-run and corruption rollback. See [review/failure boundaries](review-failure-audit.md) for decisions and operational limits.
+
 OAuth is session/workspace-bound with permission revalidation after exchange; imported demo tenants cannot call external services after a configuration switch. Typed Google token/identity responses and strict environment/provider configuration fail closed. Configuration errors hide input values. CRM approvals preserve reviewed values and serialize preference writes; stale jobs cannot execute a later approval version. Malformed external success responses never count as confirmed delivery. Adversarial regression coverage is recorded in [project status](project-status.md).

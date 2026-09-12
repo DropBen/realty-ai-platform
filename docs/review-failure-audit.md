@@ -34,4 +34,4 @@ This requires a maintenance outage and the current key; it cannot recover a lost
 
 ## Validation
 
-The initial nine review regression cases produced eight failures before fixes. The local suite then passed 191 cases with three PostgreSQL-only skips; three additional key-rotation cases passed separately. All 12 frontend transport tests passed. Final combined CI and operational evidence is recorded in project-status.md and verification.md. Live provider, cloud and realtor acceptance remain separate gates.
+The initial nine review regression cases produced eight failures before fixes. Final local validation passed 195 cases with three PostgreSQL-only skips. Linux CI passed 198 PostgreSQL cases, 12 frontend transport cases and all 26 desktop/mobile browser journeys without retries. Build, security, migration and operational checks passed. See project-status.md and verification.md for exact commit/run evidence. Live provider, cloud and realtor acceptance remain separate gates.
