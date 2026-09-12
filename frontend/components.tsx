@@ -1,7 +1,10 @@
 import {
   createContext,
+  cloneElement,
+  isValidElement,
   useContext,
   useEffect,
+  useId,
   useRef,
   useState,
   type ButtonHTMLAttributes,
@@ -268,11 +271,21 @@ export function Field({
   children: ReactNode;
   hint?: string;
 }) {
+  const id = useId();
+  const control = isValidElement<{
+    "aria-labelledby"?: string;
+    "aria-describedby"?: string;
+  }>(children)
+    ? cloneElement(children, {
+        "aria-labelledby": id,
+        "aria-describedby": hint ? id + "-hint" : undefined,
+      })
+    : children;
   return (
     <label className="field">
-      <span>{label}</span>
-      {children}
-      {hint && <small>{hint}</small>}
+      <span id={id}>{label}</span>
+      {control}
+      {hint && <small id={id + "-hint"}>{hint}</small>}
     </label>
   );
 }
