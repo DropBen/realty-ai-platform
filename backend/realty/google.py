@@ -599,18 +599,9 @@ def execute_external(db: Session, actor: Principal, action: AIAction) -> dict[st
     values = AppointmentInput.model_validate(
         action.payload if action.kind == "calendar_create" else action.payload["event"]
     )
-    conflict = db.scalar(
-        select(Appointment).where(
-            Appointment.status != "cancelled",
-            Appointment.start_at < values.end_at,
-            Appointment.end_at > values.start_at,
-            Appointment.id != (appointment.id if appointment else ""),
-        )
-    )
-    if conflict:
-        raise DomainError(
-            "calendar_conflict", "This time conflicts with an existing appointment.", 409
-        )
+    from realty.api_crm import check_conflicts
+
+    check_conflicts(db, values.model_dump(), appointment.id if appointment else "")
     body: dict[str, Any] = {
         "summary": values.title,
         "location": values.location,

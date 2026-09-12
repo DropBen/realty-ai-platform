@@ -164,6 +164,9 @@ export function Modal({
   wide?: boolean;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
+  const opener = useRef(
+    document.activeElement instanceof HTMLElement ? document.activeElement : null,
+  );
   useEffect(() => {
     const dialog = ref.current;
     dialog?.showModal();
@@ -172,7 +175,12 @@ export function Modal({
         'input:not([type="hidden"]), textarea, select',
       )
       ?.focus();
-    return () => dialog?.close();
+    return () => {
+      dialog?.close();
+      queueMicrotask(() => {
+        if (!dialog?.open && opener.current?.isConnected) opener.current.focus();
+      });
+    };
   }, []);
   return (
     <dialog

@@ -138,7 +138,7 @@ def extract_pdf(db: Session, document: Document) -> None:
             timeout=30,
             check=True,
             env=environment,
-            creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
         )
         parsed = json.loads(result.stdout)
         if not isinstance(parsed, dict) or not isinstance(parsed.get("text"), str):
