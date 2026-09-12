@@ -29,6 +29,23 @@ def test_manual_and_scheduled_sync_share_active_job_and_allow_later_sync(account
         db.commit()
 
 
+def test_operator_retry_cannot_conflict_with_an_active_sync(client, account, factory):
+    org, user = account["organization"]["id"], account["user"]["id"]
+    with factory() as db:
+        old = enqueue(db, org, "gmail_sync", {"user_id": user}, "failed-old")
+        old.status = "dead"
+        db.commit()
+        active = enqueue(db, org, "gmail_sync", {"user_id": user}, "current-sync")
+        db.commit()
+        old_id, active_id = old.id, active.id
+    response = client.post(f"/api/v1/jobs/{old_id}/retry")
+    assert response.status_code == 409, response.text
+    assert response.json()["error"]["code"] == "sync_already_active"
+    with factory() as db:
+        assert db.get(Job, old_id).status == "dead"
+        assert db.get(Job, active_id).status == "queued"
+
+
 def test_distinct_calendar_resources_are_not_accidentally_coalesced(account, factory):
     org, user = account["organization"]["id"], account["user"]["id"]
     with factory() as db:

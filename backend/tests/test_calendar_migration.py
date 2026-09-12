@@ -53,12 +53,35 @@ def test_calendar_migration_preserves_constraints_and_requires_new_review(monkey
                     **timestamps,
                 )
             )
+            for index in range(2):
+                db.execute(
+                    metadata.tables["jobs"]
+                    .insert()
+                    .values(
+                        id=f"sync-{index}",
+                        org_id="org",
+                        kind="gmail_sync",
+                        payload={"user_id": "user"},
+                        dedupe_key=f"old-request-{index}",
+                        status="queued",
+                        attempts=0,
+                        available_at=now(),
+                        **timestamps,
+                    )
+                )
         command.upgrade(config, "head")
         command.check(config)
         with engine.connect() as db:
             assert db.execute(
                 text("SELECT status,version,approved_hash FROM ai_actions")
             ).one() == ("pending", 3, None)
+            from realty.jobs import sync_resource
+
+            jobs = db.execute(text("SELECT status,resource_key FROM jobs ORDER BY id")).all()
+            assert [row.status for row in jobs] == ["queued", "done"]
+            assert {row.resource_key for row in jobs} == {
+                sync_resource("gmail_sync", {"user_id": "user"})
+            }
         for revision in ["6bda8c204a71", "head"]:
             with pytest.raises(IntegrityError), engine.begin() as db:
                 db.execute(text("UPDATE appointments SET end_at=start_at"))

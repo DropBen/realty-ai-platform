@@ -53,6 +53,8 @@ async function signIn(page: Page) {
     }),
   ).toBeVisible();
   demoCookies = await page.context().cookies();
+  const toast = page.getByRole("button", { name: "Dismiss notification" });
+  if (await toast.isVisible()) await toast.click();
 }
 
 test("scheduled approval can be withdrawn before execution", async ({
@@ -107,7 +109,7 @@ test("email review uses labelled fields and requires fresh approval after editin
     .fill("Thank you. I will call at the agreed time.");
   const { default: AxeBuilder } = await import("@axe-core/playwright");
   const accessibility = await new AxeBuilder({ page })
-    .include('[role="dialog"]')
+    .include("dialog[open]")
     .analyze();
   expect(accessibility.violations).toEqual([]);
   await page.getByRole("button", { name: "Save draft" }).click();
@@ -160,7 +162,6 @@ test("demo dashboard, navigation and mobile fit", async ({
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
   await signIn(page);
-  await page.getByRole("button", { name: "Dismiss notification" }).click();
   await expect(
     page.getByText(
       "Demo workspace · Fictional data. External sending is disabled.",

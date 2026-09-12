@@ -3,14 +3,15 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, Form, Query, Request, UploadFile
 from fastapi.responses import RedirectResponse, Response
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from realty import actions, billing, documents, google
 from realty.db import get_db, now
 from realty.errors import DomainError
 from realty.intelligence import analyze_email, briefing, command
-from realty.jobs import enqueue
+from realty.jobs import enqueue, sync_resource
 from realty.models import (
     AIAction,
     Audit,
@@ -370,7 +371,23 @@ def retry_job(
         )
     # Attempts are a monotonic fence. Resetting them lets a stale worker match again.
     # After automatic attempts are exhausted an operator retry grants one attempt.
-    job.status, job.available_at = "queued", now()
+    try:
+        changed = db.execute(
+            update(Job)
+            .where(Job.id == job.id, Job.status == "dead", Job.attempts == job.attempts)
+            .values(
+                status="queued",
+                available_at=now(),
+                resource_key=sync_resource(job.kind, job.payload),
+            )
+        )
+    except IntegrityError:
+        raise DomainError(
+            "sync_already_active", "A sync for this resource is already queued or running.", 409
+        ) from None
+    if changed.rowcount != 1:  # type: ignore[attr-defined]
+        raise DomainError("job_not_retryable", "Another operator or worker changed this job.", 409)
+    db.refresh(job)
     audit(db, actor, "job.retried", job.id)
     return public(job)
 
