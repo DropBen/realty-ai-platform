@@ -25,6 +25,7 @@ import {
   Submit,
   useAction,
 } from "./components";
+import CommitmentReview from "./CommitmentReview";
 import type { Profile as ProfileData } from "./types";
 
 export default function Profile() {
@@ -319,16 +320,7 @@ export default function Profile() {
                   <p>{m.summary || m.body}</p>
                 </article>
               ))}
-              <h3>Commitments to review</h3>
-              {p.commitments.length ? (
-                p.commitments.map((v) => (
-                  <p key={v.id}>
-                    {v.title} <Badge>{v.status}</Badge>
-                  </p>
-                ))
-              ) : (
-                <p>No commitments have been extracted.</p>
-              )}
+              <CommitmentReview items={p.commitments} />
             </section>
           )}
           {tab === "properties" && (

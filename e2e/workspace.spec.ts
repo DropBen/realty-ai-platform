@@ -244,3 +244,39 @@ test("account creation starts with an empty organization", async ({ page }) => {
     page.getByRole("heading", { name: "Nothing waiting on you" }),
   ).toBeVisible();
 });
+
+test("review a CSV listing import and find the saved property", async ({
+  page,
+}) => {
+  await signIn(page);
+  await page.goto("/properties");
+  const reference = `browser-${Date.now()}`;
+  const address = `12 ${reference} Lane`;
+  await page
+    .getByRole("button", { name: "Import listings", exact: true })
+    .click();
+  await page
+    .getByLabel("Listing file")
+    .setInputFiles({
+      name: "listings.csv",
+      mimeType: "text/csv",
+      buffer: Buffer.from(
+        `reference,updated_at,address,location,price,bedrooms,bathrooms,features\n${reference},2026-01-01T00:00:00Z,${address},Example City,575000,3,2,garage;garden\n`,
+      ),
+    });
+  await page.getByRole("button", { name: "Preview listings" }).click();
+  await expect(
+    page.getByRole("dialog").getByText(address, { exact: true }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Import reviewed listings" }).click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await page.getByPlaceholder("Search property addresses").fill(address);
+  await expect(
+    page.getByRole("button", { name: address, exact: true }),
+  ).toBeVisible();
+  await page.reload();
+  await page.getByPlaceholder("Search property addresses").fill(address);
+  await expect(
+    page.getByRole("button", { name: address, exact: true }),
+  ).toBeVisible();
+});

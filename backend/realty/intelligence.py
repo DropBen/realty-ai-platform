@@ -6,7 +6,7 @@ from zoneinfo import ZoneInfo
 
 import httpx
 from pydantic import Field, ValidationError
-from sqlalchemy import func, or_, select
+from sqlalchemy import func, or_, select, update
 from sqlalchemy.orm import Session
 
 from realty.config import settings
@@ -111,17 +111,31 @@ class OpenAIProvider:
                 },
             )
             response.raise_for_status()
+            if len(response.content) > 1024 * 1024:
+                raise ValueError("Oversized provider response")
             body = response.json()
+            if body.get("status", "completed") != "completed" or body.get("error"):
+                raise ValueError("Incomplete provider response")
             text = "".join(
                 c.get("text", "")
                 for item in body.get("output", [])
                 for c in item.get("content", [])
                 if c.get("type") == "output_text"
             )
-            return schema.model_validate_json(text), body.get("usage", {}).get("total_tokens", 0)
+            tokens = body.get("usage", {}).get("total_tokens", 0)
+            if type(tokens) is not int or not 0 <= tokens <= 1_000_000:
+                raise ValueError("Invalid token usage")
+            return schema.model_validate_json(text), tokens
         except httpx.TimeoutException as exc:
             raise DomainError("ai_timeout", "AI analysis timed out. Try again later.", 503) from exc
-        except (httpx.HTTPError, ValueError, ValidationError) as exc:
+        except (
+            httpx.HTTPError,
+            ValueError,
+            ValidationError,
+            TypeError,
+            AttributeError,
+            KeyError,
+        ) as exc:
             raise DomainError(
                 "ai_invalid_response", "AI analysis could not be validated.", 502
             ) from exc
@@ -130,6 +144,11 @@ class OpenAIProvider:
 def invoke(
     db: Session, actor: Principal, purpose: str, context: dict[str, Any], schema: type[Input]
 ) -> Input:
+    if db.get_bind().dialect.name == "sqlite":
+        # SQLite has no SELECT FOR UPDATE; serialize allowance reservation with a write lock.
+        db.execute(
+            update(Subscription).values(plan=Subscription.plan, updated_at=Subscription.updated_at)
+        )
     subscription = db.scalar(select(Subscription).with_for_update())
     if not subscription or subscription.status not in {"trialing", "active"}:
         raise DomainError(
@@ -259,6 +278,7 @@ def analyze_email(db: Session, actor: Principal, message: Communication) -> list
                 contact_id=message.contact_id,
                 responsible_user=actor.user_id if message.direction == "outbound" else None,
                 title=commitment.title,
+                quote=commitment.quote,
                 source_id=message.id,
                 confidence=commitment.confidence,
                 status="proposed",
@@ -452,6 +472,15 @@ def briefing(db: Session) -> dict[str, Any]:
             select(func.count(Task.id)).where(Task.status == "open", Task.due_at < now())
         )
         or 0,
+        "overdue_commitments": [
+            public(item)
+            for item in db.scalars(
+                select(Commitment)
+                .where(Commitment.status == "confirmed", Commitment.due_at < now())
+                .order_by(Commitment.due_at)
+                .limit(10)
+            )
+        ],
         "actions": [public(a) for a in actions[:6]],
         "tasks": [public(t) for t in tasks[:6]],
         "followups": [public(c) for c in followups],
@@ -460,7 +489,7 @@ def briefing(db: Session) -> dict[str, Any]:
             for a in db.scalars(
                 select(Appointment)
                 .where(
-                    Appointment.start_at >= today,
+                    Appointment.end_at > today,
                     Appointment.start_at < tomorrow,
                     Appointment.status != "cancelled",
                 )

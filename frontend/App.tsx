@@ -103,6 +103,7 @@ const nav = [
 ] as const;
 
 function AuthScreen() {
+  const queryClient = useQueryClient();
   const [mfa, setMfa] = useState(false);
   const [code, setCode] = useState("");
   const [register, setRegister] = useState(false);
@@ -129,10 +130,13 @@ function AuthScreen() {
               : { email, password },
         ),
       mfa ? "Sign-in verified." : "Sign-in request processed.",
+      false,
     );
     if (result?.mfa_required) {
       setMfa(true);
       setPassword("");
+    } else if (result) {
+      await queryClient.invalidateQueries();
     }
   };
   return (

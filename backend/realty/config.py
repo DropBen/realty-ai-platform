@@ -29,6 +29,7 @@ class Settings(BaseSettings):
     storage_path: str = "./data/documents"
     storage_connection_string: str = ""
     storage_container: str = "documents"
+    metrics_token: str = ""
     log_level: str = "INFO"
     require_email_verification: bool = False
     mail_backend: str = "disabled"

@@ -158,7 +158,10 @@ export function DocumentsPage() {
           <Badge>{words(selected.status)}</Badge>
           {selected.summary ? (
             <>
-              <h3>AI summary · Review required</h3>
+              <h3>
+                AI summary ·{" "}
+                {selected.reviewed_at ? "Reviewed" : "Review required"}
+              </h3>
               <p className="pre-wrap">{selected.summary}</p>
             </>
           ) : (
@@ -167,18 +170,82 @@ export function DocumentsPage() {
               provider and extracted document text.
             </p>
           )}
+          {selected.analysis && (
+            <section>
+              <h3>Extracted details</h3>
+              <p>
+                <Badge>{words(selected.analysis.classification)}</Badge> ·
+                Suggested classification
+              </p>
+              {selected.analysis.entities.length ? (
+                selected.analysis.entities.map((entity, index) => (
+                  <article key={index}>
+                    <strong>
+                      {words(entity.kind)}: {entity.value}
+                    </strong>
+                    <blockquote>{entity.quote}</blockquote>
+                  </article>
+                ))
+              ) : (
+                <p>No explicit details were extracted.</p>
+              )}
+              <form
+                onSubmit={async (event) => {
+                  event.preventDefault();
+                  const classification = new FormData(event.currentTarget).get(
+                    "classification",
+                  );
+                  const updated = await run(
+                    () =>
+                      post<Document>(`/documents/${selected.id}/review`, {
+                        classification,
+                        source_hash: selected.analysis!.source_hash,
+                      }),
+                    "Document review recorded.",
+                  );
+                  if (updated) setSelected(updated);
+                }}
+              >
+                <Field label="Confirm classification">
+                  <select
+                    name="classification"
+                    defaultValue={
+                      selected.reviewed_at
+                        ? selected.classification
+                        : selected.analysis.classification
+                    }
+                  >
+                    {[
+                      "purchase_agreement",
+                      "listing_agreement",
+                      "disclosure",
+                      "inspection",
+                      "financing",
+                      "correspondence",
+                      "other",
+                    ].map((value) => (
+                      <option key={value} value={value}>
+                        {words(value)}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+                <Submit busy={busy} label="Confirm document review" />
+              </form>
+            </section>
+          )}
           <Button
             disabled={busy}
             onClick={async () => {
               const updated = await run(
                 () => post<Document>(`/documents/${selected.id}/summarize`),
-                "Document summary generated.",
+                "Document analysis ready for review.",
               );
               if (updated) setSelected(updated);
             }}
           >
             <Sparkles size={17} />
-            Generate summary
+            Analyze document
           </Button>
         </Modal>
       )}

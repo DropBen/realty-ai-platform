@@ -4,12 +4,12 @@ from typing import Any
 import httpx
 import stripe
 from sqlalchemy import select
-from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from realty.config import settings
 from realty.errors import DomainError
 from realty.models import Organization, Subscription, WebhookEvent
+from realty.repository import insert_for
 from realty.security import Principal, audit
 
 
@@ -100,11 +100,13 @@ def webhook(db: Session, payload: bytes, signature: str) -> bool:
         )
     except (ValueError, stripe.SignatureVerificationError) as exc:
         raise DomainError("invalid_signature", "Invalid webhook signature.", 400) from exc
-    try:
-        with db.begin_nested():
-            db.add(WebhookEvent(id=event["id"]))
-            db.flush()
-    except IntegrityError:
+    receipt = db.scalar(
+        insert_for(db, WebhookEvent)
+        .values(id=event["id"])
+        .on_conflict_do_nothing(index_elements=[WebhookEvent.id])
+        .returning(WebhookEvent.id)
+    )
+    if receipt is None:
         return False
     if event["type"] not in {
         "customer.subscription.created",
@@ -124,6 +126,23 @@ def webhook(db: Session, payload: bytes, signature: str) -> bool:
         return True
     # Read canonical provider state so reordered same-second events cannot regress entitlements.
     current = stripe_request("GET", "subscriptions/" + data["id"])
+    if current.get("id") != data["id"] or current.get("customer") != subscription.customer_id:
+        raise DomainError(
+            "billing_identity_mismatch", "The subscription identity could not be verified.", 502
+        )
+    if current.get("status") not in {
+        "active",
+        "trialing",
+        "past_due",
+        "canceled",
+        "unpaid",
+        "incomplete",
+        "incomplete_expired",
+        "paused",
+    }:
+        raise DomainError(
+            "billing_invalid_response", "The subscription status could not be validated.", 502
+        )
     subscription.last_event_created = event["created"]
     subscription.subscription_id = current["id"]
     subscription.status = current["status"]

@@ -7,6 +7,7 @@ from email.message import EmailMessage
 from email.utils import parseaddr
 from typing import Any
 from urllib.parse import quote, urlencode
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import httpx
 from cryptography.fernet import Fernet
@@ -16,6 +17,7 @@ from sqlalchemy.orm import Session
 from realty.config import settings
 from realty.db import now
 from realty.errors import DomainError
+from realty.leases import checkpoint
 from realty.models import (
     Activity,
     AIAction,
@@ -218,6 +220,8 @@ class GoogleClient:
         if not path.startswith(("gmail/v1/", "calendar/v3/")) or ".." in path:
             raise DomainError("invalid_google_path", "Unsupported Google resource.")
         for attempt in range(3 if method == "GET" else 1):
+            if method == "GET":
+                checkpoint(self.db)
             try:
                 response = httpx.request(
                     method,
@@ -319,6 +323,7 @@ def message_text(payload: dict[str, Any]) -> tuple[str, list[dict[str, Any]]]:
 def sync_gmail(db: Session, actor: Principal) -> int:
     client = GoogleClient(db, actor)
     cursor = cursor_for(db, actor, "gmail")
+    checkpoint(db)
     snapshot = client.request("GET", "gmail/v1/users/me/profile")["historyId"]
     ids: set[str] = set()
     if cursor.cursor:
@@ -449,23 +454,38 @@ def sync_gmail(db: Session, actor: Principal) -> int:
             )
         )
         count += 1
+        checkpoint(db)
     cursor.cursor = snapshot
     client.integration.last_sync_at, client.integration.last_error = now(), None
     audit(db, actor, "gmail.synced", details={"messages": count})
     return count
 
 
-def calendar_time(value: dict[str, str]) -> datetime:
+def calendar_time(value: dict[str, str], default_zone: str = "UTC") -> datetime:
     raw = value.get("dateTime") or value.get("date")
     if not raw:
         raise DomainError("calendar_invalid", "Google returned an event without a date.")
-    dt = datetime.fromisoformat(raw.replace("Z", "+00:00"))
-    return dt.astimezone(UTC).replace(tzinfo=None) if dt.tzinfo else dt
+    try:
+        zone = ZoneInfo(value.get("timeZone", default_zone))
+        dt = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+        if dt.tzinfo is None:
+            local = dt.replace(tzinfo=zone)
+            if local.astimezone(UTC).astimezone(zone).replace(tzinfo=None) != dt:
+                raise ValueError("Nonexistent local time")
+            if "dateTime" in value and local.utcoffset() != local.replace(fold=1).utcoffset():
+                raise ValueError("Ambiguous local time requires a UTC offset")
+            dt = local
+        return dt.astimezone(UTC).replace(tzinfo=None)
+    except (ValueError, ZoneInfoNotFoundError) as exc:
+        raise DomainError(
+            "calendar_invalid", "Google returned an invalid or ambiguous event time.", 422
+        ) from exc
 
 
 def sync_calendar(db: Session, actor: Principal, calendar_id: str = "primary") -> int:
     client = GoogleClient(db, actor)
     cursor = cursor_for(db, actor, "calendar:" + calendar_id)
+    checkpoint(db)
     path = "calendar/v3/calendars/" + quote(calendar_id, safe="") + "/events"
     params: dict[str, Any] = {"maxResults": 250, "singleEvents": "true"}
     if cursor.cursor:
@@ -477,6 +497,7 @@ def sync_calendar(db: Session, actor: Principal, calendar_id: str = "primary") -
             raise
         cursor.cursor = None
         events, final = pages(client, path, {"maxResults": 250, "singleEvents": "true"}, "items")
+    calendar_zone = final.get("timeZone", "UTC")
     seen = set()
     for event in events:
         external_id = actor.user_id + ":" + calendar_id + ":" + event["id"]
@@ -496,15 +517,23 @@ def sync_calendar(db: Session, actor: Principal, calendar_id: str = "primary") -
             db.add(appointment)
         appointment.title = event.get("summary", "Untitled event")[:250]
         appointment.start_at, appointment.end_at = (
-            calendar_time(event["start"]),
-            calendar_time(event["end"]),
+            calendar_time(event["start"], calendar_zone),
+            calendar_time(event["end"], calendar_zone),
         )
+        if appointment.end_at <= appointment.start_at:
+            raise DomainError("calendar_invalid", "The event end must follow its start.", 422)
+        appointment.all_day = "date" in event["start"]
+        appointment.timezone = event["start"].get("timeZone", calendar_zone)
+        appointment.recurrence_id = event.get("recurringEventId")
+        original = event.get("originalStartTime", {})
+        appointment.original_start = original.get("dateTime") or original.get("date")
         appointment.location, appointment.status = event.get("location", "")[:250], "confirmed"
         attendees = [a.get("email", "").lower() for a in event.get("attendees", [])]
         contact = (
             db.scalar(select(Contact).where(Contact.email.in_(attendees))) if attendees else None
         )
         appointment.contact_id = contact.id if contact else None
+        checkpoint(db)
     if not cursor.cursor:
         for old in db.scalars(
             select(Appointment).where(

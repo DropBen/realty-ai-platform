@@ -25,9 +25,11 @@ import {
   Submit,
   useAction,
 } from "../components";
+import ListingImport from "../ListingImport";
 import type { Contact, Deal, Page, Property } from "../types";
 
 export function PropertiesPage() {
+  const [importing, setImporting] = useState(false);
   const [q, setQ] = useState("");
   const [page, setPage] = useState(1);
   const [editing, setEditing] = useState<Property | "new" | null>(null);
@@ -70,10 +72,13 @@ export function PropertiesPage() {
         title="Your property collection"
         description="A clear view of the homes in your clients' next chapter."
         action={
-          <Button variant="primary" onClick={() => setEditing("new")}>
-            <Plus size={17} />
-            Add property
-          </Button>
+          <div className="button-group">
+            <Button onClick={() => setImporting(true)}>Import listings</Button>
+            <Button variant="primary" onClick={() => setEditing("new")}>
+              <Plus size={17} />
+              Add property
+            </Button>
+          </div>
         }
       />
       <div className="list-toolbar">
@@ -160,6 +165,7 @@ export function PropertiesPage() {
           body="Add a property to compare it with your buyers' confirmed preferences."
         />
       )}
+      {importing && <ListingImport onClose={() => setImporting(false)} />}
       {editing && (
         <Modal
           title={current ? "Edit property" : "Add a property"}

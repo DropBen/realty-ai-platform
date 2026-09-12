@@ -90,17 +90,25 @@ def rate_limit(db: Session, key: str, limit: int = 120, seconds: int = 60) -> No
 
     window = int(time.time()) // seconds
     insert = sqlite_insert if db.get_bind().dialect.name == "sqlite" else pg_insert
-    statement = insert(RateBucket).values(key=digest(key), window=window, count=1)
+    statement = insert(RateBucket).values(
+        key=digest(key), window=window, count=1, expires_at=now() + timedelta(seconds=seconds * 2)
+    )
     limited = statement.on_conflict_do_update(
         index_elements=[RateBucket.key],
         set_={
             "window": window,
+            "expires_at": now() + timedelta(seconds=seconds * 2),
             "count": case((RateBucket.window != window, 1), else_=RateBucket.count + 1),
         },
         where=(RateBucket.window != window) | (RateBucket.count < limit),
     ).returning(RateBucket.count)
     if db.scalar(limited) is None:
-        raise DomainError("rate_limited", "Too many requests. Please try again later.", 429)
+        raise DomainError(
+            "rate_limited",
+            "Too many requests. Please try again later.",
+            429,
+            seconds - int(time.time()) % seconds,
+        )
 
 
 def principal(request: Request, db: Session = Depends(get_db, scope="function")) -> Principal:

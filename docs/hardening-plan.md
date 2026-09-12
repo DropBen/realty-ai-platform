@@ -16,3 +16,7 @@ No live-provider success without credentials and evidence. No customer data in t
 ## Evidence and progress
 - Baseline local verification: 44 tests passed, two upstream deprecation warnings; Ruff and mypy passed; production build passed.
 - Implementation and test results below are updated during work, not inferred from code presence.
+
+- Identity commit ed073da: PostgreSQL and SQLite CI suites, migration drift, audits, Bandit, Docker and Bicep passed. Four new browser checks exposed an MFA form-state bug, a sign-out timing issue and an auth-page contrast failure; fixed in the next changes. Original 12 browser journeys passed.
+- Route inventory test covers authentication on every API route. Added actual chunked-body bounds, rejection headers, Retry-After, atomic webhook/job deduplication, Stripe canonical-customer validation, bounded AI metering, same-transaction organization switching and renewable PostgreSQL job leases with stale-worker transaction fencing.
+- Added source-preserving commitment review/reminders, document evidence/classification review, transactional file cleanup, timezone/DST/all-day calendar metadata, reviewed CSV/JSON listing ingestion, operator metrics, schema readiness, worker heartbeat and retention maintenance. New product tests passed locally; complete-suite and browser verification are ongoing.

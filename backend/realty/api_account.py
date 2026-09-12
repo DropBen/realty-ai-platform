@@ -40,7 +40,10 @@ def members(
 ) -> dict[str, Any]:
     rows = db.execute(select(Membership, User).join(User, User.id == Membership.user_id)).all()
     return {
-        "items": [{"id": m.id, "name": u.name, "email": u.email, "role": m.role} for m, u in rows]
+        "items": [
+            {"id": m.id, "user_id": u.id, "name": u.name, "email": u.email, "role": m.role}
+            for m, u in rows
+        ]
     }
 
 
@@ -91,13 +94,13 @@ def organizations(
     actor: Principal = Depends(principal), db: Session = Depends(get_db, scope="function")
 ) -> dict[str, Any]:
     # Explicit cross-organization identity lookup, scoped by the authenticated user.
-    with Session(db.get_bind()) as identity_db:
-        rows = identity_db.execute(
-            select(Organization, Membership)
-            .join(Membership, Membership.org_id == Organization.id)
-            .where(Membership.user_id == actor.user_id)
-        ).all()
-        return {"items": [{"id": org.id, "name": org.name, "role": m.role} for org, m in rows]}
+    membership = Membership.__table__
+    rows = db.execute(
+        select(Organization.id, Organization.name, membership.c.role)
+        .join(membership, membership.c.org_id == Organization.id)
+        .where(membership.c.user_id == actor.user_id)
+    ).all()
+    return {"items": [{"id": row.id, "name": row.name, "role": row.role} for row in rows]}
 
 
 @router.post("/organizations/{org_id}/switch")
@@ -106,17 +109,16 @@ def switch_organization(
     actor: Principal = Depends(principal),
     db: Session = Depends(get_db, scope="function"),
 ) -> dict[str, bool]:
-    with Session(db.get_bind()) as identity_db:
-        membership = identity_db.scalar(
-            select(Membership).where(
-                Membership.user_id == actor.user_id, Membership.org_id == org_id
-            )
-        )
-        if not membership:
-            raise DomainError("forbidden", "You do not belong to this organization.", 403)
+    members = Membership.__table__
+    membership = db.scalar(
+        select(members.c.id).where(members.c.user_id == actor.user_id, members.c.org_id == org_id)
+    )
+    if not membership:
+        raise DomainError("forbidden", "You do not belong to this organization.", 403)
     session = db.get(LoginSession, actor.session_id)
     assert session is not None
     session.org_id = org_id
+    audit(db, actor, "organization.switched", org_id)
     return {"ok": True}
 
 
@@ -176,15 +178,15 @@ def delete_account(
             "Cancel the subscription in the billing portal before deleting this organization.",
             409,
         )
-    from realty.documents import storage
+    from realty.documents import queue_deletion
 
     for document in db.scalars(select(Document)).all():
-        storage().delete(document.storage_key)
+        queue_deletion(db, document)
     session_ids = select(LoginSession.id).where(LoginSession.org_id == actor.org_id)
     db.execute(delete(OAuthState).where(OAuthState.session_id.in_(session_ids)))
     db.execute(delete(LoginSession).where(LoginSession.org_id == actor.org_id))
     for table in reversed(Base.metadata.sorted_tables):
-        if "org_id" in table.c and table.name != "sessions":
+        if "org_id" in table.c and table.name not in {"sessions", "storage_deletions"}:
             db.execute(delete(table).where(table.c.org_id == actor.org_id))
     db.delete(org)
     db.flush()

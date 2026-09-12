@@ -305,12 +305,22 @@ export function CalendarPage() {
           sorted.map((a) => (
             <article className="calendar-row" key={a.id}>
               <div className="calendar-day">
-                <strong>{date(a.start_at, { day: "numeric" })}</strong>
-                <span>{date(a.start_at, { month: "short" })}</span>
+                <strong>
+                  {date(a.start_at, {
+                    day: "numeric",
+                    timeZone: a.all_day ? a.timezone : undefined,
+                  })}
+                </strong>
+                <span>
+                  {date(a.start_at, {
+                    month: "short",
+                    timeZone: a.all_day ? a.timezone : undefined,
+                  })}
+                </span>
               </div>
               <div className="calendar-time">
-                <strong>{time(a.start_at)}</strong>
-                <span>{time(a.end_at)}</span>
+                <strong>{a.all_day ? "All day" : time(a.start_at)}</strong>
+                <span>{a.all_day ? a.timezone : time(a.end_at)}</span>
               </div>
               <div className="calendar-description">
                 <h3>{a.title}</h3>

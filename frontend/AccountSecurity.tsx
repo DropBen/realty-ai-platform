@@ -49,6 +49,7 @@ export default function AccountSecurity() {
       mode === "password"
         ? "Password changed. Sign in again."
         : "Account security updated.",
+      mode !== "password",
     );
     if (!result) return;
     if (mode === "password") {
@@ -213,6 +214,7 @@ export default function AccountSecurity() {
                   const result = await run(
                     () => post("/auth/sessions/revoke-all"),
                     "All sessions revoked.",
+                    false,
                   );
                   if (result) window.location.assign("/");
                 }}
@@ -428,7 +430,7 @@ export function AccountAccess() {
               ? "Your email is verified."
               : link.reset
                 ? "Your password is updated. All existing sessions have been signed out."
-                : "If an account is eligible, a recovery email will be delivered. Check your inbox. In development, check the local account-mail outbox."}
+                : "If an account is eligible, a recovery email will be delivered. Check your inbox. "}
           </p>
         ) : (
           <form onSubmit={submit}>

@@ -39,6 +39,9 @@ export interface Task extends RecordBase {
   assigned_to: string | null;
 }
 export interface Appointment extends RecordBase {
+  all_day: boolean;
+  timezone: string;
+  recurrence_id: string | null;
   title: string;
   start_at: string;
   end_at: string;
@@ -124,12 +127,7 @@ export interface Profile {
   tasks: Task[];
   facts: Fact[];
   appointments: Appointment[];
-  commitments: {
-    id: string;
-    title: string;
-    status: string;
-    due_at: string | null;
-  }[];
+  commitments: Commitment[];
   missing: string[];
   matches: Match[];
 }
@@ -185,6 +183,13 @@ export interface Integrations {
   }[];
 }
 export interface Document extends RecordBase {
+  reviewed_at: string | null;
+  analysis: {
+    classification: string;
+    source_hash: string;
+    state: string;
+    entities: { kind: string; value: string; quote: string }[];
+  } | null;
   name: string;
   mime_type: string;
   size: number;
@@ -229,4 +234,17 @@ export interface Subscription {
   trial_end: string | null;
   period_end: string | null;
   cancel_at_period_end: boolean;
+}
+
+export interface Commitment {
+  id: string;
+  contact_id: string;
+  title: string;
+  status: string;
+  quote: string;
+  source_id: string;
+  confidence: number;
+  version: number;
+  due_at: string | null;
+  responsible_user: string | null;
 }

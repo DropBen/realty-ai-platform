@@ -29,6 +29,9 @@ var baseEnvironment = [
   { name: 'APP_ENV', value: 'production' }
   { name: 'DEMO_MODE', value: 'false' }
   { name: 'COOKIE_SECURE', value: 'true' }
+  { name: 'REQUIRE_EMAIL_VERIFICATION', value: 'true' }
+  { name: 'MAIL_BACKEND', value: 'smtp' }
+  { name: 'SMTP_STARTTLS', value: 'true' }
   { name: 'APP_ORIGIN', value: appOrigin }
   { name: 'API_ORIGIN', value: appOrigin }
   { name: 'STORAGE_BACKEND', value: 'azure' }

@@ -320,7 +320,10 @@ def availability(
         for hour in range(9, 17):
             local_start = date.replace(hour=hour)
             local_end = local_start + timedelta(minutes=duration)
-            if local_end.hour > 17 or local_end.date() != local_start.date():
+            if (
+                local_end > date.replace(hour=17, minute=0)
+                or local_end.date() != local_start.date()
+            ):
                 continue
             candidate = local_start.astimezone(UTC).replace(tzinfo=None)
             end = local_end.astimezone(UTC).replace(tzinfo=None)

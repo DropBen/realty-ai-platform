@@ -3021,7 +3021,7 @@ body:has(dialog[open]) {
 }
 .auth-story > small {
   font-size: 0.875rem;
-  color: #93b482;
+  color: #abc998;
   max-width: 390px;
 }
 .auth-form {
@@ -4063,5 +4063,23 @@ body {
   }
   .account-access {
     margin-top: 25px;
+  }
+}
+
+.commitment-row {
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+  align-items: center;
+  padding: 18px 0;
+  border-bottom: 1px solid var(--line);
+}
+.commitment-row p {
+  margin: 8px 0 0;
+}
+@media (max-width: 760px) {
+  .commitment-row {
+    flex-direction: column;
+    align-items: flex-start;
   }
 }

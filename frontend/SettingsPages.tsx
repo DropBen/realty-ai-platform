@@ -412,6 +412,11 @@ function Team() {
   );
 }
 function Operations() {
+  const health = useApi<{
+    worker_available: boolean;
+    oldest_due_seconds: number;
+    storage_cleanup_failures: number;
+  }>("/operations");
   const jobs = useApi<Page<Job>>("/jobs");
   const audit = useApi<Page<Audit>>("/audit");
   const { busy, run } = useAction();
@@ -420,10 +425,28 @@ function Operations() {
       <section className="section-card">
         <div className="section-heading">
           <h2>Background work</h2>
-          <Button onClick={() => jobs.refetch()}>
+          <Button
+            aria-label="Refresh background jobs"
+            onClick={() => {
+              jobs.refetch();
+              health.refetch();
+            }}
+          >
             <RefreshCw size={15} />
           </Button>
         </div>
+        {health.data && (
+          <p>
+            <Badge tone={health.data.worker_available ? "green" : "amber"}>
+              {health.data.worker_available
+                ? "Worker available"
+                : "Worker needs attention"}
+            </Badge>{" "}
+            · Oldest waiting job: {health.data.oldest_due_seconds}s
+            {health.data.storage_cleanup_failures > 0 &&
+              " · File cleanup needs attention"}
+          </p>
+        )}
         {jobs.error ? (
           <ErrorState error={jobs.error} />
         ) : jobs.data?.items.length ? (

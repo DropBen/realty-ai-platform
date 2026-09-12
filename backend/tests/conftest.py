@@ -39,6 +39,13 @@ def factory(monkeypatch: pytest.MonkeyPatch) -> Generator[sessionmaker[Session],
         connection.execute(
             text("CREATE TABLE IF NOT EXISTS alembic_version (version_num VARCHAR(32) PRIMARY KEY)")
         )
+        from realty.operations import expected_revision
+
+        connection.execute(text("DELETE FROM alembic_version"))
+        connection.execute(
+            text("INSERT INTO alembic_version (version_num) VALUES (:revision)"),
+            {"revision": expected_revision()},
+        )
     factory = sessionmaker(engine, expire_on_commit=False)
     monkeypatch.setattr("realty.jobs.SessionLocal", factory)
     monkeypatch.setattr("realty.main.SessionLocal", factory)

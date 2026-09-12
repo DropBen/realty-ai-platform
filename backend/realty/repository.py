@@ -53,3 +53,11 @@ def paginate(db: Session, statement: Any, page: int, size: int) -> dict[str, Any
     total = db.scalar(select(func.count()).select_from(statement.order_by(None).subquery())) or 0
     rows = db.scalars(statement.offset((page - 1) * size).limit(size)).all()
     return {"items": [public(row) for row in rows], "total": total, "page": page, "page_size": size}
+
+
+def insert_for(db: Session, model: Any) -> Any:
+    """Portable conflict handling without SQLite's legacy SAVEPOINT autocommit."""
+    from sqlalchemy.dialects.postgresql import insert as pg_insert
+    from sqlalchemy.dialects.sqlite import insert as sqlite_insert
+
+    return (sqlite_insert if db.get_bind().dialect.name == "sqlite" else pg_insert)(model)

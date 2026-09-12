@@ -10,8 +10,10 @@ from realty.actions import execute, propose
 from realty.db import SessionLocal, now
 from realty.errors import DomainError
 from realty.intelligence import analyze_email, match_property
+from realty.leases import Lease, check_fence
 from realty.models import (
     AIAction,
+    Commitment,
     Communication,
     Contact,
     Document,
@@ -23,7 +25,7 @@ from realty.models import (
     Usage,
     Workflow,
 )
-from realty.repository import require
+from realty.repository import insert_for, require
 from realty.schemas import ActionInput
 from realty.security import Principal, audit
 
@@ -31,12 +33,14 @@ log = logging.getLogger("realty.worker")
 
 
 def enqueue(db: Session, org_id: str, kind: str, payload: dict[str, Any], dedupe: str) -> Job:
-    existing = db.scalar(select(Job).where(Job.dedupe_key == dedupe))
-    if existing:
-        return existing
-    job = Job(org_id=org_id, kind=kind, payload=payload, dedupe_key=dedupe)
-    db.add(job)
-    db.flush()
+    db.execute(
+        insert_for(db, Job)
+        .values(org_id=org_id, kind=kind, payload=payload, dedupe_key=dedupe)
+        .on_conflict_do_nothing(index_elements=[Job.org_id, Job.dedupe_key])
+    )
+    job = db.scalar(select(Job).where(Job.org_id == org_id, Job.dedupe_key == dedupe))
+    if job is None:
+        raise DomainError("job_conflict", "Could not reserve the background job.", 409)
     return job
 
 
@@ -160,6 +164,11 @@ def dispatch(db: Session, job: Job) -> None:
 
         deliver_mail(db, job.payload)
         return
+    if job.kind == "commitment_reminder":
+        from realty.commitments import remind
+
+        remind(db, job.payload)
+        return
     if job.kind == "execute_action":
         execute(db, job.payload["action_id"])
         return
@@ -236,12 +245,30 @@ def tick() -> bool:
                 )
                 db.commit()
                 return True
+        attempt = job.attempts
+        started = time.monotonic()
         try:
-            dispatch(db, job)
-            job.status, job.error_code = "done", None
-            db.commit()
+            with Lease(db, SessionLocal, job):
+                dispatch(db, job)
+                job.status, job.error_code = "done", None
+                db.commit()
+            log.info(
+                "job.completed",
+                extra={
+                    "job_id": job.id,
+                    "org_id": job.org_id,
+                    "duration_ms": round((time.monotonic() - started) * 1000),
+                    "attempt": attempt,
+                },
+            )
         except Exception as exc:
             db.rollback()
+            try:
+                check_fence(db, job.id, job.org_id, attempt)
+            except DomainError:
+                db.rollback()
+                log.warning("job.lease_lost", extra={"job_id": job.id})
+                return True
             db.refresh(job)
             code = exc.code if isinstance(exc, DomainError) else "internal_error"
             if job.kind == "execute_action":
@@ -282,6 +309,21 @@ def schedule_recurring() -> None:
             if not owner:
                 continue
             actor = Principal(owner.user_id, org_id, owner.role)
+            for item in db.scalars(
+                select(Commitment)
+                .where(
+                    Commitment.status == "confirmed",
+                    Commitment.due_at <= now() + timedelta(hours=24),
+                )
+                .limit(1000)
+            ).all():
+                enqueue(
+                    db,
+                    org_id,
+                    "commitment_reminder",
+                    {"commitment_id": item.id, "version": item.version},
+                    f"commitment:{item.id}:{item.version}:{now().date()}",
+                )
             for contact in db.scalars(
                 select(Contact)
                 .where(
@@ -317,15 +359,31 @@ def schedule_recurring() -> None:
 
 def main() -> None:
     from realty.observability import configure_logging
+    from realty.operations import WorkerHeartbeat, assert_schema, maintenance, pulse
 
     configure_logging()
-    last_sweep = 0.0
-    while True:
-        if time.monotonic() - last_sweep > 3600:
-            schedule_recurring()
-            last_sweep = time.monotonic()
-        if not tick():
-            time.sleep(2)
+    with SessionLocal() as db:
+        assert_schema(db)
+    heartbeat = WorkerHeartbeat(SessionLocal)
+    heartbeat.start()
+    last_sweep = last_maintenance = 0.0
+    try:
+        while True:
+            try:
+                if time.monotonic() - last_maintenance > 30:
+                    maintenance(SessionLocal)
+                    pulse(SessionLocal)
+                    last_maintenance = time.monotonic()
+                if time.monotonic() - last_sweep > 3600:
+                    schedule_recurring()
+                    last_sweep = time.monotonic()
+                if not tick():
+                    time.sleep(2)
+            except Exception:
+                log.error("worker.loop_failed")
+                time.sleep(5)
+    finally:
+        heartbeat.close()
 
 
 if __name__ == "__main__":

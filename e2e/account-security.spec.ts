@@ -156,10 +156,14 @@ test("automated accessibility and keyboard dialog behavior", async ({
 }, info) => {
   await page.goto("/");
   await page.getByRole("button", { name: "Explore demo workspace" }).click();
-  await expect(page.locator("main h1")).toBeVisible();
+  await expect(
+    page.getByRole("heading", {
+      name: /Good (morning|afternoon|evening), Sarah/,
+    }),
+  ).toBeVisible();
   for (const path of ["/", "/contacts", "/settings"]) {
     await page.goto(path);
-    await expect(page.locator("main h1")).toBeVisible();
+    await expect(page.locator("#main h1")).toBeVisible();
     await expect(page.locator("main [role='status']")).toHaveCount(0);
     if (path === "/settings")
       await page.getByRole("button", { name: "Security", exact: true }).click();

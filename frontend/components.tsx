@@ -243,11 +243,12 @@ export function useAction() {
   async function run<T>(
     fn: () => Promise<T>,
     message = "Saved successfully",
+    invalidate = true,
   ): Promise<T | undefined> {
     setBusy(true);
     try {
       const result = await fn();
-      await client.invalidateQueries();
+      if (invalidate) await client.invalidateQueries();
       toast(message);
       return result;
     } catch (error) {

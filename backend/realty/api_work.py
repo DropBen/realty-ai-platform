@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from realty import actions, billing, documents, google
 from realty.db import get_db, now
 from realty.errors import DomainError
-from realty.intelligence import Answer, analyze_email, briefing, command, invoke
+from realty.intelligence import analyze_email, briefing, command
 from realty.jobs import enqueue
 from realty.models import (
     AIAction,
@@ -247,27 +247,26 @@ def document_summary(
     actor: Principal = Depends(principal),
     db: Session = Depends(get_db, scope="function"),
 ) -> dict[str, Any]:
-    actor.require("write")
     document = require(db, Document, document_id)
-    if not document.text:
-        raise DomainError(
-            "no_document_text",
-            "This document has no extracted text. Scanned PDFs require an OCR provider.",
-            409,
-        )
-    result = invoke(
-        db,
-        actor,
-        "Summarize the supplied document for internal review. Do not offer legal advice. Cite its source ID.",
-        {"source_id": document.id, "text": document.text[:24000]},
-        Answer,
-    )
-    assert isinstance(result, Answer)
-    if set(result.source_ids) - {document.id}:
-        raise DomainError(
-            "unsupported_evidence", "Document summary cited an unavailable source.", 422
-        )
-    document.summary = result.answer
+    documents.analyze_document(db, actor, document)
+    return public(document)
+
+
+@router.post("/documents/{document_id}/review")
+def document_review(
+    document_id: str,
+    body: documents.DocumentReview,
+    actor: Principal = Depends(principal),
+    db: Session = Depends(get_db, scope="function"),
+) -> dict[str, Any]:
+    actor.require("approve")
+    document = require(db, Document, document_id)
+    if document.sha256 != body.source_hash or not document.analysis:
+        raise DomainError("stale_document", "Analyze and review the current document first.", 409)
+    document.classification = body.classification
+    document.reviewed_by, document.reviewed_at = actor.user_id, now()
+    document.analysis = {**document.analysis, "state": "reviewed"}
+    audit(db, actor, "document.reviewed", document.id)
     return public(document)
 
 
@@ -279,7 +278,7 @@ def document_delete(
 ) -> dict[str, bool]:
     actor.require("write")
     document = require(db, Document, document_id)
-    documents.storage().delete(document.storage_key)
+    documents.queue_deletion(db, document)
     audit(db, actor, "document.deleted", document.id)
     db.delete(document)
     return {"ok": True}
@@ -351,7 +350,9 @@ def retry_job(
         raise DomainError(
             "job_not_retryable", "Review failed external actions in the action center.", 409
         )
-    job.status, job.attempts, job.available_at = "queued", 0, now()
+    # Attempts are a monotonic fence. Resetting them lets a stale worker match again.
+    # After automatic attempts are exhausted an operator retry grants one attempt.
+    job.status, job.available_at = "queued", now()
     audit(db, actor, "job.retried", job.id)
     return public(job)
 

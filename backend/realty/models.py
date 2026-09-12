@@ -95,6 +95,9 @@ class RateBucket(Base):
     key: Mapped[str] = mapped_column(String(100), primary_key=True)
     window: Mapped[int] = mapped_column(Integer)
     count: Mapped[int] = mapped_column(Integer, default=1)
+    expires_at: Mapped[datetime] = mapped_column(
+        DateTime, default=now, server_default="2000-01-01 00:00:00", index=True
+    )
 
 
 class Contact(TenantRecord, Base):
@@ -226,6 +229,21 @@ class Appointment(TenantRecord, Base):
     external_id: Mapped[str | None] = mapped_column(String(160))
     calendar_id: Mapped[str | None] = mapped_column(String(250))
     owner_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"))
+    all_day: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
+    timezone: Mapped[str] = mapped_column(String(64), default="UTC", server_default="UTC")
+    recurrence_id: Mapped[str | None] = mapped_column(String(250))
+    original_start: Mapped[str | None] = mapped_column(String(100))
+
+
+class StorageDeletion(Record, Base):
+    """Durable cleanup survives organization deletion; no tenant API exposes it."""
+
+    __tablename__ = "storage_deletions"
+    org_id: Mapped[str] = mapped_column(String(36), index=True)
+    storage_key: Mapped[str] = mapped_column(String(250), unique=True)
+    attempts: Mapped[int] = mapped_column(Integer, default=0)
+    available_at: Mapped[datetime] = mapped_column(DateTime, default=now, index=True)
+    error_code: Mapped[str | None] = mapped_column(String(60))
 
 
 class Communication(TenantRecord, Base):
@@ -268,10 +286,12 @@ class Fact(TenantRecord, Base):
 
 class Commitment(TenantRecord, Base):
     __tablename__ = "commitments"
-    __table_args__ = (contact_fk(),)
+    __table_args__ = (contact_fk(), Index("ix_commitment_due", "org_id", "status", "due_at"))
     contact_id: Mapped[str] = mapped_column(String(36))
     responsible_user: Mapped[str | None] = mapped_column(ForeignKey("users.id"))
     title: Mapped[str] = mapped_column(String(250))
+    quote: Mapped[str] = mapped_column(Text, default="", server_default="")
+    version: Mapped[int] = mapped_column(Integer, default=1, server_default="1")
     source_id: Mapped[str] = mapped_column(String(100))
     due_at: Mapped[datetime | None] = mapped_column(DateTime)
     confidence: Mapped[float] = mapped_column(Float)
@@ -325,6 +345,11 @@ class Document(TenantRecord, Base):
     text: Mapped[str | None] = mapped_column(Text)
     summary: Mapped[str | None] = mapped_column(Text)
     classification: Mapped[str] = mapped_column(String(60), default="unclassified")
+    analysis: Mapped[dict[str, Any] | None] = mapped_column(JSON)
+    reviewed_by: Mapped[str | None] = mapped_column(
+        ForeignKey("users.id", name="fk_documents_reviewed_by")
+    )
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime)
     status: Mapped[str] = mapped_column(String(30), default="stored")
 
 
@@ -416,3 +441,22 @@ class Audit(TenantRecord, Base):
     target_id: Mapped[str | None] = mapped_column(String(100))
     result: Mapped[str] = mapped_column(String(30), default="success")
     details: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+
+
+class WorkerPulse(Base):
+    __tablename__ = "worker_pulses"
+    id: Mapped[str] = mapped_column(String(100), primary_key=True)
+    last_seen: Mapped[datetime] = mapped_column(DateTime, default=now, index=True)
+
+
+class ListingImport(TenantRecord, Base):
+    __tablename__ = "listing_imports"
+    __table_args__ = (
+        UniqueConstraint("org_id", "provider", "reference"),
+        ForeignKeyConstraint(["org_id", "property_id"], ["properties.org_id", "properties.id"]),
+    )
+    provider: Mapped[str] = mapped_column(String(80))
+    reference: Mapped[str] = mapped_column(String(100))
+    property_id: Mapped[str] = mapped_column(String(36))
+    source_updated_at: Mapped[datetime] = mapped_column(DateTime)
+    content_hash: Mapped[str] = mapped_column(String(64))

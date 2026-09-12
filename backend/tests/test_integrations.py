@@ -278,6 +278,7 @@ def test_stripe_signature_duplicate_and_stale_events(client, account, factory, m
                     200,
                     json={
                         "id": "sub_test",
+                        "customer": "cus_test",
                         "status": "active",
                         "items": {"data": [{"price": {"id": "price_test"}}]},
                     },
