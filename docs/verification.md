@@ -16,11 +16,18 @@ This file is updated with final command results at handoff. Tests configured in 
 
 ## Linux CI
 
-The [verification workflow](https://github.com/DropBen/realty-ai-platform/actions/workflows/ci.yml) has passed the backend suite on SQLite and PostgreSQL, both dependency audits, container build and Bicep compilation. Browser runs identified accessible-label, mobile-dialog and signup transaction-timing issues. Corrective changes are covered by the next workflow run. Desktop/mobile dashboard screenshots were visually inspected.
+The [completed Linux workflow](https://github.com/DropBen/realty-ai-platform/actions/runs/34664439443) verifies application commit `7062b114d92dc6d1ae3357f0a52c2ea01cc4b291`:
+
+- **44 backend tests passed on SQLite and 44 passed on PostgreSQL.**
+- **12 Playwright journeys passed without retries:** six each on desktop and mobile Chromium, including every route's device-width check, contact/preferences/timeline, command results, action approval/execution, unconfigured Google status and isolated signup.
+- Python/frontend formatting, lint and type checks, migrations, both dependency audits, the production web build, Docker image build and Azure Bicep compilation all passed.
+- Desktop/mobile dashboard screenshots were visually inspected. Browser regression work resolved accessible labels, response-commit timing and mobile table containment.
+
+These journeys validate the implemented workflows; they are not an accessibility audit, browser compatibility certification or load test. Subsequent handoff edits only update documentation.
 
 ## Infrastructure-dependent checks
 
-- Browser runtime initialization and Chrome launch failed because Windows IPC was unavailable in this host. Desktop/mobile Playwright tests and screenshots are configured in CI, but are not claimed as locally passed.
+- Browser runtime initialization and Chrome launch failed because Windows IPC was unavailable in this host. Desktop/mobile Playwright tests pass in Linux CI, but are not claimed as locally executed.
 - Docker was installed but its Linux engine was unavailable. Local container/PostgreSQL execution was not verified.
 - Azure subscription resources and production credentials were unavailable. Bicep provisioning and live external-provider acceptance were not executed.
 

@@ -6,7 +6,7 @@ The build creates one immutable image containing the API and compiled web assets
 
 Local → development → staging → production, each with independent databases, secrets, provider apps, webhook endpoints and document containers. Production uses HTTPS, `DEMO_MODE=false`, secure cookies, a valid Fernet key, PostgreSQL TLS and private object storage. Set `APP_ORIGIN` to the exact public origin.
 
-Use `infra/apps.bicep` with preprovisioned network/identity/storage/database resources as described in `infra/README.md`. It deploys the app and a non-ingress worker and references Key Vault secrets. Bicep, Docker and Azure deployment require independent validation; this host had no running Docker daemon or Azure CLI/credentials.
+Use `infra/apps.bicep` with preprovisioned network/identity/storage/database resources as described in `infra/README.md`. It deploys the app and a non-ingress worker and references Key Vault secrets. Bicep compilation and the Docker image build pass in Linux CI. Azure provisioning and runtime acceptance still require a subscription and a staging deployment; neither was executed.
 
 ## Release sequence
 

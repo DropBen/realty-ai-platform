@@ -19,6 +19,6 @@ The suite covers:
 
 `e2e/workspace.spec.ts` covers desktop/mobile route loading, responsive width, contact creation, preferences/timeline, grounded command results, approval → worker → timeline, explicit unconfigured Google status and new-account isolation. Run with a seeded isolated demo API and worker at `E2E_BASE_URL` (default localhost:8000).
 
-The build host's computer-use runtimes failed to initialize and Chrome could not create Windows IPC pipes. Browser tests are supplied but **local execution/visual inspection is not claimed**. CI runs them on Linux with Chromium and uploads screenshots, traces and logs. Review that output before accepting UI or accessibility quality.
+All 12 desktop/mobile journeys passed without retries in [Linux CI](https://github.com/DropBen/realty-ai-platform/actions/runs/34664439443). Dashboard screenshots were visually inspected. Each route is checked against the configured device width after data loads; failures attach rendered layout diagnostics. The build host could not launch Chrome because Windows IPC was unavailable, so browser execution is verified in CI rather than locally. Dedicated keyboard, screen-reader and broader browser acceptance remain release gates.
 
 Live Google consent, external sending, calendar mutations, real AI inference, Stripe test checkout, Blob storage and Azure are separate staging certification tests. They are not marked passed by an HTTP mock.

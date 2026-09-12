@@ -4,7 +4,7 @@
 
 RealtyAI is a modular real-estate CRM with a working API, relational database, background worker, React workspace and approval-driven intelligence. It runs locally without production credentials in an explicitly labelled demo workspace.
 
-This is a tested foundation, **not a certified production release**. Live Google/Stripe/OpenAI validation, browser acceptance, PostgreSQL deployment validation and cloud rollout have separate acceptance gates. See [acceptance and limitations](docs/acceptance.md).
+This is a tested foundation, **not a certified production release**. Live Google/Stripe/OpenAI validation, accessibility and load testing, PostgreSQL deployment validation and cloud rollout have separate acceptance gates. See [acceptance and limitations](docs/acceptance.md).
 
 ## Start locally
 
@@ -94,4 +94,4 @@ Start the API and worker on an isolated demo database, then `npx playwright inst
 
 ## Documentation
 
-[Architecture](docs/architecture.md) Â· [Setup](docs/setup.md) Â· [Environment](docs/environment.md) Â· [Security](docs/security.md) Â· [AI design](docs/ai-architecture.md) Â· [Google](docs/google-integration.md) Â· [Billing](docs/billing.md) Â· [Database](docs/database.md) Â· [Deployment](docs/deployment.md) Â· [Testing](docs/testing.md) Â· [Troubleshooting](docs/troubleshooting.md) Â· [Acceptance](docs/acceptance.md)
+[Architecture](docs/architecture.md) · [Setup](docs/setup.md) · [Environment](docs/environment.md) · [Security](docs/security.md) · [AI design](docs/ai-architecture.md) · [Google](docs/google-integration.md) · [Billing](docs/billing.md) · [Database](docs/database.md) · [Deployment](docs/deployment.md) · [Testing](docs/testing.md) · [Troubleshooting](docs/troubleshooting.md) · [Acceptance](docs/acceptance.md)
