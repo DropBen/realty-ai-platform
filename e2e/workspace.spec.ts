@@ -51,7 +51,20 @@ test("demo dashboard, navigation and mobile fit", async ({
   ]) {
     await page.goto(path);
     await expect(page.locator("main h1")).toBeVisible();
+    await expect(page.locator("main [role='status']")).toHaveCount(0);
     await expect(page.getByText("We couldn't load this")).toHaveCount(0);
+    const layout = await page.evaluate(() => ({
+      viewport: window.innerWidth,
+      document: document.documentElement.scrollWidth,
+    }));
+    expect(
+      layout.viewport,
+      `${path}: layout viewport must fit the device`,
+    ).toBeLessThanOrEqual(page.viewportSize()!.width);
+    expect(
+      layout.document,
+      `${path}: page must not scroll horizontally`,
+    ).toBeLessThanOrEqual(layout.viewport);
   }
   expect(errors).toEqual([]);
 });
