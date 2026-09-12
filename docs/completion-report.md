@@ -8,7 +8,8 @@ RealtyAI is a functional CRM and approval-driven assistant with local demo opera
 
 Repository: [DropBen/realty-ai-platform](https://github.com/DropBen/realty-ai-platform). Implementation: [PR #1](https://github.com/DropBen/realty-ai-platform/pull/1).
 
-Pre-merge audit: `main` was the initial README commit `5b11c25`; PR #1 contained the application, was mergeable, had no reviews/unresolved threads, and `main` had no protection or rulesets. The reviewed application commit is `be1a8b8d91c0f997e32d7cb15bc5b39ef01936a2`. Merge is gated on successful final CI; the PR page records the definitive merge result. No production deployment is triggered.
+**Repository status:** PR #1 is **ready for review**. `main` remains at the initial README commit `5b11c25ee6fae8edd5790d082ac8bed11031b3cd`; the production application is on `feat/realtyai-foundation`. The final implementation/test-environment head `fe07875269c4315dddf0f02302ca74d532ae5154` passed every CI job. Branch/ruleset and review inspection found no conflicts, protections or unresolved reviews. Automatic approval review rejected merging into `main` because the trusted request did not explicitly authorize that consequential action. **Explicit user approval is required before merging PR #1.** No merge or production deployment is claimed. This documentation update records the completed evidence and approval boundary.
+
 
 ## What changed
 
@@ -22,7 +23,8 @@ Pre-merge audit: `main` was the initial README commit `5b11c25`; PR #1 contained
 
 ## Tests actually executed
 
-[Application CI run 34668757058](https://github.com/DropBen/realty-ai-platform/actions/runs/34668757058) passed all five jobs: **111 PostgreSQL tests; 110 SQLite tests and one intended skip; 17 browser tests passed initially and one passed on retry**; operational drills, lint/types/Bandit, dependency audits, migrations, production web build, Docker and Bicep passed. Inspection traced the browser retry to legitimate rate limiting on the shared demo account. The final workflow separates desktop/mobile environments to remove that test interference without weakening limits; its completed result is recorded on PR #1 and in the final handoff.
+[Final implementation CI run 34668978988](https://github.com/DropBen/realty-ai-platform/actions/runs/34668978988) passed all six jobs at `fe07875269c4315dddf0f02302ca74d532ae5154`: **111 PostgreSQL tests; 110 SQLite tests and one intended skip; all 18 desktop/mobile browser tests passed on the first attempt**, including MFA/recovery and axe/keyboard checks. Operational drills, lint/types/Bandit, dependency audits, migrations, production web build, Docker and Bicep passed. Independent device environments eliminated the shared-account rate-limit interference found in the earlier run without weakening any application limits. Subsequent changes only record these results and the merge approval boundary.
+
 
 Local Windows: `python -m pytest -p no:cacheprovider --junitxml=../../work/final-tests.xml` → **110 passed, 1 skipped**, 75.79 seconds, two upstream test-client deprecation warnings. The skip is the PostgreSQL-only concurrent heartbeat test. Focused identity/PDF/evaluation run → **34 passed**; post-calendar-change integration/document run → **16 passed**. Ruff lint/format, mypy, Bandit medium/high scan, ESLint/Prettier, TypeScript production build and SQLite migration drift checks passed. Browser IPC and Docker daemon were unavailable locally; Linux execution is identified separately rather than claimed as local.
 
@@ -53,7 +55,7 @@ Subjective engineering assessment out of 100, **not measured compliance or a pro
 
 | # | Area | Status | Evidence / practical limit |
 |---|---|---|---|
-| 1 | Repository | Implemented + verified; merge gated by final CI | Audited base/head, branch rules and reviews; final PR/commit state above |
+| 1 | Repository | Implemented + verified; merge awaiting user approval | Audited base/head, branch rules and reviews; final PR/commit state above |
 | 2 | Backend | Implemented + verified | API/service tests, type/lint/build; 75 explicit API authentication policies |
 | 3 | Frontend | Implemented + verified | Typed React build and actual desktop/mobile workflows; no production traffic |
 | 4 | Database | Implemented + verified | Concrete Alembic head `2375a43c78e9`, SQLite/PG checks and recovery; managed Azure instance pending |
@@ -81,7 +83,7 @@ Subjective engineering assessment out of 100, **not measured compliance or a pro
 
 ## Remaining autonomous work
 
-No known failed automated check or unimplemented core task is intentionally left at this handoff. The next work depends on the external prerequisites below: configure staging, execute enabled live-provider acceptance, run sustained production-shaped load/cloud disaster drills, address findings from independent reviews, and record a release decision. Broader product development remains the advanced future scope explicitly separated below; it is not a reason to call current interfaces complete integrations.
+No known failed automated check or unimplemented core task is intentionally left at this handoff. The immediate remaining action is merging the verified PR, which automatic approval review blocked pending explicit user approval. Subsequent work depends on the external prerequisites below: configure staging, execute enabled live-provider acceptance, run sustained production-shaped load/cloud disaster drills, address findings from independent reviews, and record a release decision. Broader product development remains the advanced future scope explicitly separated below; it is not a reason to call current interfaces complete integrations.
 
 ## Genuine external/user blockers
 
@@ -89,6 +91,7 @@ Credentials should be entered directly in Key Vault or the relevant provider con
 
 | Needed / why | Where to configure | How to verify | Next engineering action |
 |---|---|---|---|
+| Explicit approval to merge PR #1 into `main`; automatic approval review rejected the consequential default-branch change | Reply with merge approval in this task; no credentials needed | Recheck current head, base, reviews and passing CI; merge with an expected-head guard | Merge the verified PR and confirm `main` contains the application |
 | Azure subscription, authorized deployment access, region/network/resource choices, staging budget and domain ownership; source cannot provision someone else's approved environment | Separate staging resource group, Container Apps environment, PostgreSQL, private Blob, ACR, Key Vault, identity and DNS; IDs in protected Bicep parameters | Run what-if, deploy immutable image, migrate once, verify HTTPS/schema/worker/private storage and negative access tests | Configure supplied resources, deploy staging, exercise smoke/rollback/cloud restore and publish evidence |
 | SMTP service and approved sender domain; production recovery requires real delivery | SMTP_HOST/PORT/MAIL_FROM runtime; SMTP_USERNAME/PASSWORD as protected credentials; SPF/DKIM/DMARC in provider/DNS | Deliver verification/reset/security notice, check spam/delay, token expiry/replay and link origin | Wire service, run end-to-end identity acceptance, then allow signup |
 | Google OAuth project/consent status, exact redirect, test users and mailbox/calendar authorization | Google Cloud web OAuth application; GOOGLE_CLIENT_ID/REDIRECT_URI runtime, CLIENT_SECRET in Key Vault; account connection through Settings | Grant required scopes; full/incremental sync, revoke/reconnect, approved send/create/update/delete, timezone and recovery cases | Run live integration checklist and fix contract/runtime discrepancies |
@@ -121,8 +124,8 @@ Credentials should be entered directly in Key Vault or the relevant provider con
 - [x] Execute offline AI evaluations, isolated load baseline and verified restore drills.
 - [x] Provide metrics/health, worker reliability, deployment artifacts and operator runbooks.
 - [x] Audit current base/head, rules and review state before a merge decision.
-- [x] Complete application CI (one disclosed browser retry; isolated device suites added for final CI).
-- [ ] Confirm final isolated browser run and merge result on PR #1 before release.
+- [x] Complete final CI; all 18 isolated desktop/mobile browser tests passed without retries.
+- [ ] Merge PR #1 into `main` after explicit user approval; automatic approval review blocked this action.
 - [ ] Provision isolated staging/production resources, DNS/HTTPS and protected secrets.
 - [ ] Verify enabled Google/AI/Stripe/SMTP/Blob providers against actual test accounts.
 - [ ] Configure live alert routing, automated backups, retention and key recovery; prove Azure RPO/RTO.
