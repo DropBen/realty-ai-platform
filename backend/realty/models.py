@@ -14,6 +14,7 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    text,
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -226,7 +227,8 @@ class Appointment(TenantRecord, Base):
     end_at: Mapped[datetime] = mapped_column(DateTime)
     location: Mapped[str] = mapped_column(String(250), default="")
     status: Mapped[str] = mapped_column(String(30), default="confirmed")
-    external_id: Mapped[str | None] = mapped_column(String(160))
+    external_id: Mapped[str | None] = mapped_column(String(1536))
+    provider_etag: Mapped[str | None] = mapped_column(String(1024))
     calendar_id: Mapped[str | None] = mapped_column(String(250))
     owner_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"))
     all_day: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
@@ -417,10 +419,19 @@ class Job(TenantRecord, Base):
     __table_args__ = (
         UniqueConstraint("org_id", "dedupe_key"),
         Index("ix_jobs_due", "status", "available_at"),
+        Index(
+            "uq_active_sync_resource",
+            "org_id",
+            "resource_key",
+            unique=True,
+            sqlite_where=text("status IN ('queued','running') AND resource_key IS NOT NULL"),
+            postgresql_where=text("status IN ('queued','running') AND resource_key IS NOT NULL"),
+        ),
     )
     kind: Mapped[str] = mapped_column(String(50))
     payload: Mapped[dict[str, Any]] = mapped_column(JSON)
     dedupe_key: Mapped[str] = mapped_column(String(250))
+    resource_key: Mapped[str | None] = mapped_column(String(64))
     status: Mapped[str] = mapped_column(String(20), default="queued")
     attempts: Mapped[int] = mapped_column(Integer, default=0)
     available_at: Mapped[datetime] = mapped_column(DateTime, default=now)

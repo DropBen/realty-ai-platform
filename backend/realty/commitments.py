@@ -2,7 +2,7 @@ from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, Query
 from pydantic import Field
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from realty.db import get_db, now
@@ -44,13 +44,21 @@ def review(
     db: Session = Depends(get_db, scope="function"),
 ) -> dict[str, Any]:
     actor.require("approve")
-    item = db.scalar(select(Commitment).where(Commitment.id == commitment_id).with_for_update())
+    item = db.scalar(select(Commitment).where(Commitment.id == commitment_id))
     if not item:
         raise DomainError("not_found", "This commitment is unavailable.", 404)
     if item.version != body.version:
         raise DomainError(
             "stale_commitment", "This commitment changed. Refresh before reviewing it.", 409
         )
+    changed = db.execute(
+        update(Commitment)
+        .where(Commitment.id == commitment_id, Commitment.version == body.version)
+        .values(version=body.version + 1)
+    )
+    if changed.rowcount != 1:  # type: ignore[attr-defined]
+        raise DomainError("stale_commitment", "Another reviewer changed this commitment.", 409)
+    db.refresh(item)
     if body.status == "done" and item.status != "confirmed":
         raise DomainError("review_required", "Confirm the commitment before completing it.", 409)
     if body.status == "confirmed" and (not body.due_at or not body.responsible_user):
@@ -65,7 +73,6 @@ def review(
         body.due_at,
         body.responsible_user,
     )
-    item.version += 1
     db.add(
         Activity(
             org_id=actor.org_id,

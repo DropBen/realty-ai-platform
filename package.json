@@ -11,7 +11,8 @@
     "lint": "eslint frontend",
     "format": "prettier --write frontend package.json",
     "format:check": "prettier --check frontend package.json",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "test:unit": "node --test --test-isolation=none tests/*.test.mjs"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.90.0",

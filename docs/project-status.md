@@ -2,6 +2,12 @@
 
 Canonical engineering status. Updated September 12, 2026; the application verification ran September 12 UTC (September 11 America/New_York). Earlier completion reports are historical snapshots, not release certification.
 
+## Continuation audit
+
+The [review/failure audit](review-failure-audit.md) closes additional demonstrated gaps: approval withdrawal and exact-version execution; contact/timeline consistency; atomic extraction under overlapping requests; conditional Calendar provider writes; active sync reservations; commitment review races; upload responsiveness; browser recovery; and quiesced encryption-key rotation. It introduces no runtime dependency or broad product feature.
+
+Local regression suite: 191 passed, three PostgreSQL-only skips; three additional key-rotation cases passed separately. Frontend transport: 12 passed. Formatting, lint, mypy (32 modules), Bandit and web build passed. The combined PostgreSQL/browser/container/operational CI run is pending. Evidence farther below describes the previous verified application until the new run is recorded.
+
 ## Current milestone
 
 Harden the approval-driven realtor workflow for external integration acceptance. Preserve the FastAPI/SQLAlchemy modular monolith and React application. Fix demonstrated authority, data integrity and failure-reporting defects before adding capabilities.
@@ -99,6 +105,6 @@ Incremental controls are tested, not a security certification. No LLM can author
 
 ## Recommended next steps
 
-**This hardening milestone is verified. The next useful validation is the staged Google email-to-review-to-delivery workflow and live AI evaluation on approved test data.** Fix observed integration discrepancies before expanding feature scope. Cloud deployment and billing acceptance follow once their independent credentials and budgets are available.
+Complete combined CI and the local migration/restart smoke checks for this continuation. Then run staged Google email-to-review-to-delivery acceptance and live AI evaluation on approved test data. Fix observed integration discrepancies before expanding feature scope. Cloud deployment and billing acceptance follow when needed.
 
-The stopping point is external integration acceptance, not exhaustion of possible engineering work. Adding broader features before observing real provider behavior would not strengthen the core milestone. The next code work should address live acceptance findings; the account/credential prerequisites above are specific and independently unblockable.
+Do not request credentials while repository-only defects or verification failures remain. Once those pass, Google acceptance is the first external gate; unrelated integrations do not block it.

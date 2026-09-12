@@ -36,7 +36,7 @@ Maintenance removes expired sessions/OAuth state, expired rate buckets, auth tok
 
 Document deletion is queued in the database transaction; the worker deletes the blob only after commit. Organization deletion preserves those cleanup records until storage removal succeeds. Cleanup retries up to five times with backoff; investigate persistent failures in Settings. A process/power failure between an upload and database commit can still leave an orphan. Reconcile the storage inventory against database document keys during a quiesced maintenance window, using a grace period and reviewed dry-run list. Never delete recent unmatched uploads automatically.
 
-Fernet protects Google tokens, TOTP secrets/pending enrollment and queued account mail. Back up the encryption key separately in an access-controlled vault; losing it prevents decrypting existing values. Do not replace it in place: under a maintenance freeze, re-encrypt every ciphertext column using old and new keys, verify samples, then switch all processes atomically and retain the old protected version for the backup retention period. Without a tested rotation procedure, reconnect Google and re-enroll MFA through a verified support process; never disable MFA merely because a key was lost.
+Fernet protects Google tokens, TOTP secrets/pending enrollment and queued account mail. Back up the encryption key separately in an access-controlled vault; losing it prevents decrypting existing values. Use the tested [transactional rotation procedure](review-failure-audit.md), including dry-run validation, maintenance freeze and atomic configuration cutover. Never replace a key in place or disable MFA merely because a key was lost.
 
 ## Recovery and release ownership
 

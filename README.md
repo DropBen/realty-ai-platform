@@ -53,7 +53,7 @@ With Docker running, `docker compose up --build` starts PostgreSQL, migrations, 
 - Contacts/leads/buyers/sellers, confirmed preferences, source facts, a relationship timeline, notes/calls/showing feedback, properties, deals and transaction milestones.
 - Tasks, local appointments, calendar conflict detection, available-time suggestions and meeting preparation.
 - Data-derived briefing, bounded natural-language search, explainable buyer/property matching, email extraction, proposed commitments and follow-up drafts.
-- AI action review, edit, reject, snooze, scheduled approval, background execution, safe retry rules, internal undo and audit events.
+- AI action review, edit, reject, snooze, scheduled approval/withdrawal, background execution, safe retry rules, internal undo and audit events. Email drafts use labelled form fields.
 - Google OAuth with PKCE, encrypted refresh tokens, incremental Gmail/Calendar synchronization, email sends and Calendar mutations behind approval.
 - OpenAI structured-output provider behind an explicit interface, tenant-bound context and source validation. No provider is called in demo mode.
 - Reviewed CSV/JSON listing import, source-preserving commitment review/reminders, and document classification/entity proposals.

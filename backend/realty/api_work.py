@@ -222,13 +222,14 @@ def document_list(
 
 
 @router.post("/documents", status_code=201)
-async def document_upload(
+def document_upload(
     file: UploadFile = File(...),
     contact_id: str | None = Form(None),
     actor: Principal = Depends(principal),
     db: Session = Depends(get_db, scope="function"),
 ) -> dict[str, Any]:
-    content = await file.read(documents.MAX_UPLOAD + 1)
+    # FastAPI runs this synchronous storage/database work in its thread pool.
+    content = file.file.read(documents.MAX_UPLOAD + 1)
     document = documents.upload(db, actor, file.filename or "document", content, contact_id)
     if document.status == "pending_extraction":
         enqueue(

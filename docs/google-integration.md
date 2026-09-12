@@ -1,5 +1,7 @@
 # Google integration
 
+Calendar writes now require the reviewed imported ETag and use If-Match. A changed or unversioned event requires synchronization and a new review; active duplicate syncs share a database reservation. See [review/failure boundaries](review-failure-audit.md).
+
 Create a Google Cloud OAuth web application, enable Gmail and Calendar APIs, configure the consent screen, add test users and register the exact callback URL from `GOOGLE_REDIRECT_URI`. Supply the client ID, secret and encryption key to the server, set `DEMO_MODE=false`, and use a separate non-demo database. The connection UI never says connected merely because it was clicked.
 
 The initial request asks for OpenID/email identity, Gmail readonly and Calendar readonly. Gmail send and Calendar event modification are separate explicit capability requests. State is session-bound, short-lived and single-use; PKCE binds the exchange. Offline refresh tokens are Fernet-encrypted, rotated from refresh responses and revoked on disconnect.

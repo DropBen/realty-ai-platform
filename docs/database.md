@@ -1,5 +1,7 @@
 # Database
 
+Current head is 9f24a781c6de. Quiesce API/worker before applying the [calendar revision and active sync migration](review-failure-audit.md). It preserves date constraints, coalesces duplicate active read-sync jobs and returns old Calendar mutation approvals to review.
+
 The initial Alembic migration contains the concrete schema; it does not dynamically import future model definitions. SQLAlchemy models map typed columns, indexes, timestamps, check constraints, unique keys and relational associations. JSON is reserved for variable action payloads, feature lists, provider metadata and structured event details.
 
 Tenant tables cover memberships, contacts, preferences, properties, deals, transaction milestones, activities, tasks, appointments, communications, facts, commitments, actions, notifications, documents, integrations, cursors, subscriptions, usage, jobs, workflows and audit events. Organizations/users/sessions/OAuth state/rate buckets/webhook IDs form the identity and operational layer. Leads, buyers and sellers are contact roles rather than duplicated identities. Notes/calls/showings/feedback are typed activities.

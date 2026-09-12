@@ -1,5 +1,6 @@
 import base64
 import json
+import re
 import secrets
 import time
 from datetime import UTC, datetime, timedelta
@@ -12,7 +13,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 import httpx
 from cryptography.fernet import Fernet
 from pydantic import BaseModel, EmailStr, Field, StrictBool
-from sqlalchemy import delete, select
+from sqlalchemy import delete, select, update
 from sqlalchemy.orm import Session
 
 from realty.config import settings
@@ -280,6 +281,7 @@ class GoogleClient:
         *,
         params: dict[str, Any] | None = None,
         body: dict[str, Any] | None = None,
+        if_match: str | None = None,
     ) -> dict[str, Any]:
         if not path.startswith(("gmail/v1/", "calendar/v3/")) or ".." in path:
             raise DomainError("invalid_google_path", "Unsupported Google resource.")
@@ -290,7 +292,10 @@ class GoogleClient:
                 response = httpx.request(
                     method,
                     "https://www.googleapis.com/" + path,
-                    headers={"Authorization": "Bearer " + self.access_token},
+                    headers={
+                        "Authorization": "Bearer " + self.access_token,
+                        **({"If-Match": if_match} if if_match else {}),
+                    },
                     params=params,
                     json=body,
                     timeout=25,
@@ -328,6 +333,12 @@ class GoogleClient:
                     "google_scope",
                     "Google access is missing. Connect the required permission in Settings.",
                     403,
+                )
+            if response.status_code == 412:
+                raise DomainError(
+                    "calendar_changed",
+                    "The Google event changed. Sync and review a new proposal.",
+                    409,
                 )
             if not response.is_success:
                 raise DomainError("google_rejected", "Google rejected the request.", 502)
@@ -624,6 +635,7 @@ def sync_calendar(db: Session, actor: Principal, calendar_id: str = "primary") -
             )
             db.add(appointment)
         appointment.title = event.get("summary", "Untitled event")[:250]
+        appointment.provider_etag = event_etag(event)
         appointment.start_at, appointment.end_at = (
             calendar_time(event["start"], calendar_zone),
             calendar_time(event["end"], calendar_zone),
@@ -694,6 +706,23 @@ def execute_external(db: Session, actor: Principal, action: AIAction) -> dict[st
     event_id = "realty" + action.id.replace("-", "")
     if action.kind != "calendar_create":
         appointment = require(db, Appointment, action.payload["appointment_id"])
+        # Hold the local event revision through provider dispatch, including on SQLite.
+        db.execute(
+            update(Appointment)
+            .where(Appointment.id == appointment.id)
+            .values(updated_at=Appointment.updated_at)
+        )
+        db.refresh(appointment)
+        from realty.actions import calendar_basis
+
+        if action.approval_basis is None or action.approval_basis != calendar_basis(appointment):
+            raise DomainError(
+                "calendar_changed", "The reviewed event changed. Sync and review it again.", 409
+            )
+        if not appointment.provider_etag:
+            raise DomainError(
+                "calendar_sync_required", "Sync this Google event before reviewing a change.", 409
+            )
         if appointment.owner_id != actor.user_id or not appointment.external_id:
             raise DomainError(
                 "calendar_owner", "Only the connected owner can change this Google event.", 403
@@ -702,7 +731,11 @@ def execute_external(db: Session, actor: Principal, action: AIAction) -> dict[st
     calendar_id = appointment.calendar_id if appointment else "primary"
     path = "calendar/v3/calendars/" + quote(calendar_id or "primary", safe="") + "/events"
     if action.kind == "calendar_delete":
-        client.request("DELETE", path + "/" + quote(event_id, safe=""))
+        client.request(
+            "DELETE",
+            path + "/" + quote(event_id, safe=""),
+            if_match=appointment.provider_etag if appointment else None,
+        )
         assert appointment is not None
         appointment.status = "cancelled"
         return {"external_id": event_id}
@@ -728,16 +761,32 @@ def execute_external(db: Session, actor: Principal, action: AIAction) -> dict[st
             calendar_id="primary",
             external_id=actor.user_id + ":primary:" + event_id,
             **values.model_dump(),
+            provider_etag=event_etag(result),
         )
         db.add(appointment)
     else:
-        result = client.request("PATCH", path + "/" + quote(event_id, safe=""), body=body)
+        # A timed replacement must clear the mutually exclusive all-day date fields.
+        body["start"].update({"date": None, "timeZone": "UTC"})
+        body["end"].update({"date": None, "timeZone": "UTC"})
+        result = client.request(
+            "PATCH",
+            path + "/" + quote(event_id, safe=""),
+            body=body,
+            if_match=appointment.provider_etag if appointment else None,
+        )
         confirmed_id(result, event_id)
         assert appointment is not None
         for key, value in values.model_dump().items():
             setattr(appointment, key, value)
+        appointment.provider_etag = event_etag(result)
+        appointment.all_day, appointment.timezone = False, "UTC"
     audit(db, actor, action.kind, action.id)
     return {"external_id": event_id}
+
+
+def event_etag(event: dict[str, Any]) -> str | None:
+    value = event.get("etag")
+    return value if isinstance(value, str) and re.fullmatch(r'"[^"\r\n]{1,1000}"', value) else None
 
 
 def confirmed_id(result: dict[str, Any], expected: str | None = None) -> str:

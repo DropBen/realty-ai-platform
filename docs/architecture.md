@@ -1,5 +1,7 @@
 # Architecture
 
+Additional transaction/approval decisions from the continuation audit are documented in [review and failure boundaries](review-failure-audit.md).
+
 ## Product flow
 
 ```mermaid

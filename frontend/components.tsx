@@ -366,8 +366,24 @@ export function ActionCard({
     JSON.stringify(action.payload, null, 2),
   );
   const [scheduled, setScheduled] = useState("");
+  const [emailDraft, setEmailDraft] = useState({
+    to: String(action.payload.to || ""),
+    subject: String(action.payload.subject || ""),
+    body: String(action.payload.body || ""),
+  });
+  const openEditor = () => {
+    setReview(false);
+    setPayload(JSON.stringify(action.payload, null, 2));
+    setEmailDraft({
+      to: String(action.payload.to || ""),
+      subject: String(action.payload.subject || ""),
+      body: String(action.payload.body || ""),
+    });
+    setEdit(true);
+  };
   const { busy, run } = useAction();
   const pending = ["pending", "snoozed"].includes(action.status);
+  const queued = action.status === "approved";
   const decide = async (decision: string, extra: object = {}) => {
     const result = await run(
       () =>
@@ -387,15 +403,16 @@ export function ActionCard({
   };
   const submitEdit = async (e: FormEvent) => {
     e.preventDefault();
-    await run(async () => {
-      const parsed: unknown = JSON.parse(payload);
+    const result = await run(async () => {
+      const parsed: unknown =
+        action.kind === "send_email" ? emailDraft : JSON.parse(payload);
       return post(`/actions/${action.id}/decision`, {
         decision: "edit",
         version: action.version,
         payload: parsed,
       });
     }, "Draft updated. Review it before approving.");
-    setEdit(false);
+    if (result) setEdit(false);
   };
   return (
     <article className={`action-card ${compact ? "compact" : ""}`}>
@@ -425,11 +442,15 @@ export function ActionCard({
               ? "Delivery could not be confirmed. Check the provider before creating another action; this action will not be sent again automatically."
               : action.error_code === "changed_since_approval"
                 ? "The client's preferences changed after approval. Return this suggestion for a new review."
-                : action.error_code === "expired_action"
-                  ? "The approval expired. Return this suggestion for a new review."
-                  : action.error_code === "forbidden"
-                    ? "The approving user's access changed. An authorized reviewer must review this again."
-                    : `${words(action.error_code)}. Review Settings and the provider before retrying.`}
+                : ["calendar_changed", "calendar_sync_required"].includes(
+                      action.error_code,
+                    )
+                  ? "Sync Google Calendar, then return this suggestion for a new review of the current event."
+                  : action.error_code === "expired_action"
+                    ? "The approval expired. Return this suggestion for a new review."
+                    : action.error_code === "forbidden"
+                      ? "The approving user's access changed. An authorized reviewer must review this again."
+                      : `${words(action.error_code)}. Review Settings and the provider before retrying.`}
           </p>
         )}
         <div className="action-controls">
@@ -504,14 +525,7 @@ export function ActionCard({
                   : "The worker will apply this change and record it in the client timeline."}
               </p>
               <div className="modal-actions">
-                <Button
-                  onClick={() => {
-                    setEdit(true);
-                    setPayload(JSON.stringify(action.payload, null, 2));
-                  }}
-                >
-                  Edit
-                </Button>
+                <Button onClick={openEditor}>Edit</Button>
                 <Button disabled={busy} onClick={() => decide("reject")}>
                   Reject
                 </Button>
@@ -532,6 +546,22 @@ export function ActionCard({
               </div>
             </>
           )}
+          {queued && canApprove && (
+            <>
+              <p className="help-text">
+                You can withdraw or edit this approval until the worker starts
+                execution. An edit requires a new approval.
+              </p>
+              <div className="modal-actions">
+                <Button disabled={busy} onClick={openEditor}>
+                  Edit and review again
+                </Button>
+                <Button disabled={busy} onClick={() => decide("reject")}>
+                  Withdraw approval
+                </Button>
+              </div>
+            </>
+          )}
           {action.status === "failed" && canApprove && (
             <Button onClick={() => decide("retry")}>
               Return for a new review
@@ -542,17 +572,57 @@ export function ActionCard({
       {edit && (
         <Modal title="Edit proposed action" onClose={() => setEdit(false)}>
           <form onSubmit={submitEdit}>
-            <Field
-              label="Proposed fields"
-              hint="Only supported fields are accepted. Saving does not execute the action."
-            >
-              <textarea
-                className="code-input"
-                rows={12}
-                value={payload}
-                onChange={(e) => setPayload(e.target.value)}
-              />
-            </Field>
+            {action.kind === "send_email" ? (
+              <>
+                <Field label="Recipient">
+                  <input
+                    type="email"
+                    required
+                    value={emailDraft.to}
+                    readOnly={Boolean(action.contact_id)}
+                    onChange={(e) =>
+                      setEmailDraft({ ...emailDraft, to: e.target.value })
+                    }
+                  />
+                </Field>
+                <Field label="Subject">
+                  <input
+                    required
+                    maxLength={250}
+                    value={emailDraft.subject}
+                    onChange={(e) =>
+                      setEmailDraft({ ...emailDraft, subject: e.target.value })
+                    }
+                  />
+                </Field>
+                <Field
+                  label="Message"
+                  hint="Saving a draft does not send it. Review and approve the final message."
+                >
+                  <textarea
+                    required
+                    rows={10}
+                    maxLength={20000}
+                    value={emailDraft.body}
+                    onChange={(e) =>
+                      setEmailDraft({ ...emailDraft, body: e.target.value })
+                    }
+                  />
+                </Field>
+              </>
+            ) : (
+              <Field
+                label="Proposed fields"
+                hint="Only supported fields are accepted. Saving does not execute the action."
+              >
+                <textarea
+                  className="code-input"
+                  rows={12}
+                  value={payload}
+                  onChange={(e) => setPayload(e.target.value)}
+                />
+              </Field>
+            )}
             <Submit busy={busy} label="Save draft" />
           </form>
         </Modal>

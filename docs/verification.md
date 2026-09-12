@@ -1,5 +1,7 @@
 # Verification evidence
 
+Continuation audit in progress: local 191 passed/three PostgreSQL-only skips, three additional key-rotation regressions, and 12 frontend unit tests passed. Combined CI is pending. The run described below is the earlier baseline; it does not certify the continuation changes.
+
 Current application evidence: [CI run 34671651786](https://github.com/DropBen/realty-ai-platform/actions/runs/34671651786), commit `ce03214ebc588280b1dc82f01a26a6ed002f0d04`, September 12, 2026 UTC (September 11 America/New_York). All six jobs passed. Status and blockers: [project status](project-status.md). Earlier findings are retained as historical evidence in [completion-report.md](completion-report.md).
 
 ## Local Windows

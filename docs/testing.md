@@ -1,5 +1,7 @@
 # Testing and reproducible evidence
 
+npm run test:unit executes transport/cancellation/backoff/date regressions using Node 24's built-in test runner. New database/API and browser cases are described in [review/failure boundaries](review-failure-audit.md), including three PostgreSQL-only concurrency cases and labelled email-editor accessibility.
+
 Tests use fictional data. Backend fixtures create and drop their tables; `TEST_DATABASE_URL` must be disposable. Never aim browser, load or recovery drills at customer data. Tests use `respx` provider contracts, not live accounts.
 
 ## Backend and build

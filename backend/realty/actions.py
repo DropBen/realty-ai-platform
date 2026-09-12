@@ -77,7 +77,12 @@ def checked_payload(
                 "The change conflicts with the client's existing preferences.",
                 422,
             ) from exc
+    contact_id = action_contact(db, kind, checked, contact_id)
     if contact_id:
+        if kind in {"create_task", "calendar_create"}:
+            checked["contact_id"] = contact_id
+        if kind == "calendar_update" and checked.get("event"):
+            checked["event"]["contact_id"] = contact_id
         contact = require(db, Contact, contact_id)
         if checked.get("contact_id", contact_id) != contact_id:
             raise DomainError(
@@ -96,6 +101,50 @@ def checked_payload(
     return checked
 
 
+def action_contact(
+    db: Session, kind: str, payload: dict[str, Any], contact_id: str | None
+) -> str | None:
+    """Bind the review, mutation and timeline to the same tenant-owned contact."""
+    candidates = {contact_id, payload.get("contact_id")}
+    if kind in {"calendar_update", "calendar_delete"}:
+        appointment = require(db, Appointment, payload["appointment_id"])
+        candidates.add(appointment.contact_id)
+        event = payload.get("event")
+        if event is not None:
+            candidates.add(event.get("contact_id"))
+            if appointment.contact_id and "contact_id" in event and event["contact_id"] is None:
+                raise DomainError("contact_mismatch", "Review contact reassignment separately.")
+    candidates.discard(None)
+    if len(candidates) > 1:
+        raise DomainError(
+            "contact_mismatch", "The action and its payload refer to different contacts."
+        )
+    return next(iter(candidates), None)
+
+
+def calendar_basis(appointment: Appointment) -> dict[str, Any]:
+    return {
+        key: value.isoformat() if hasattr(value, "isoformat") else value
+        for key in (
+            "title",
+            "start_at",
+            "end_at",
+            "location",
+            "status",
+            "contact_id",
+            "owner_id",
+            "external_id",
+            "calendar_id",
+            "all_day",
+            "timezone",
+            "recurrence_id",
+            "original_start",
+            "provider_etag",
+        )
+        for value in [getattr(appointment, key)]
+    }
+
+
 def propose(
     db: Session, actor: Principal, data: ActionInput, dedupe: str | None = None
 ) -> AIAction:
@@ -107,7 +156,8 @@ def propose(
     payload = checked_payload(db, data.kind, data.payload, data.contact_id)
     action = AIAction(
         org_id=actor.org_id,
-        **data.model_dump(exclude={"payload"}),
+        **data.model_dump(exclude={"payload", "contact_id"}),
+        contact_id=action_contact(db, data.kind, payload, data.contact_id),
         payload=payload,
         permission="approval_required" if data.kind in EXTERNAL_KINDS else "suggested",
         dedupe_key=dedupe,
@@ -137,7 +187,11 @@ def decide(db: Session, actor: Principal, action_id: str, decision: Decision) ->
         actor.require("external")
     changed = db.execute(
         update(AIAction)
-        .where(AIAction.id == action_id, AIAction.version == decision.version)
+        .where(
+            AIAction.id == action_id,
+            AIAction.version == decision.version,
+            AIAction.status == action.status,
+        )
         .values(version=decision.version + 1)
     )
     if changed.rowcount != 1:  # type: ignore[attr-defined]
@@ -159,14 +213,21 @@ def decide(db: Session, actor: Principal, action_id: str, decision: Decision) ->
         action.approval_basis = None
         action.expires_at = now() + timedelta(days=14)
     else:
-        if action.status not in {"pending", "snoozed"}:
+        withdrawing = action.status == "approved" and decision.decision in {"edit", "reject"}
+        if action.status not in {"pending", "snoozed"} and not withdrawing:
             raise DomainError(
                 "invalid_transition", "This suggestion can no longer be changed.", 409
             )
+        if withdrawing:
+            action.approved_by = None
+            action.approved_hash = None
+            action.approval_basis = None
+            action.scheduled_at = None
         if decision.decision == "edit":
             if decision.payload is None:
                 raise DomainError("invalid_action", "Provide an edited action.")
             action.payload = checked_payload(db, action.kind, decision.payload, action.contact_id)
+            action.contact_id = action_contact(db, action.kind, action.payload, action.contact_id)
             action.approval_basis = None
             action.status = "pending"
         elif decision.decision == "reject":
@@ -187,6 +248,10 @@ def decide(db: Session, actor: Principal, action_id: str, decision: Decision) ->
                     key: getattr(preference, key) if preference else defaults[key]
                     for key in action.payload["changes"]
                 }
+            elif action.kind in {"calendar_update", "calendar_delete"}:
+                action.approval_basis = calendar_basis(
+                    require(db, Appointment, action.payload["appointment_id"])
+                )
             checked_payload(db, action.kind, action.payload, action.contact_id)
             action.approved_hash, action.approved_by = snapshot(action), actor.user_id
             action.status = "approved"
@@ -204,8 +269,10 @@ def decide(db: Session, actor: Principal, action_id: str, decision: Decision) ->
     return action
 
 
-def execute(db: Session, action_id: str) -> AIAction:
+def execute(db: Session, action_id: str, approval_version: int | None = None) -> AIAction:
     action = require(db, AIAction, action_id)
+    if approval_version is not None and action.version != approval_version:
+        return action
     if action.status in {"succeeded", "undone", "uncertain", "failed"}:
         return action
     if (
@@ -228,11 +295,21 @@ def execute(db: Session, action_id: str) -> AIAction:
     checked_payload(db, action.kind, action.payload, action.contact_id)
     changed = db.execute(
         update(AIAction)
-        .where(AIAction.id == action.id, AIAction.status == "approved")
+        .where(
+            AIAction.id == action.id,
+            AIAction.status == "approved",
+            AIAction.version == action.version,
+            AIAction.approved_hash == action.approved_hash,
+            AIAction.approved_by == action.approved_by,
+            AIAction.scheduled_at == action.scheduled_at,
+            AIAction.expires_at == action.expires_at,
+        )
         .values(status="executing")
     )
     if changed.rowcount != 1:  # type: ignore[attr-defined]
-        raise DomainError("already_executing", "Another worker is executing this action.", 409)
+        raise DomainError(
+            "already_executing", "The approval changed or another worker is executing it.", 409
+        )
     db.refresh(action)
     # External requests cannot share a database transaction. Persist the claim first.
     # Crash recovery marks an abandoned external claim uncertain; it never resends blindly.

@@ -227,8 +227,14 @@ def analyze_email(db: Session, actor: Principal, message: Communication) -> list
     from realty.actions import propose
     from realty.schemas import ActionInput
 
+    actor.require("write")
+    message = require(db, Communication, message.id)
     if message.analyzed or not message.contact_id:
         return []
+    source = {
+        key: getattr(message, key)
+        for key in ("body", "contact_id", "subject", "direction", "received_at")
+    }
     result = (
         extract_demo(message.body)
         if settings.demo_mode
@@ -245,10 +251,31 @@ def analyze_email(db: Session, actor: Principal, message: Communication) -> list
         )
     )
     assert isinstance(result, Extraction)
+    # The provider call commits its allowance reservation and releases database locks.
+    # Claim the unchanged source after that call, in the same transaction as all facts.
+    claimed = db.execute(
+        update(Communication)
+        .where(
+            Communication.id == message.id,
+            Communication.analyzed.is_(False),
+            *(getattr(Communication, key) == value for key, value in source.items()),
+        )
+        .values(analyzed=True)
+        .execution_options(synchronize_session=False)
+    )
+    db.refresh(message)
+    if claimed.rowcount != 1:  # type: ignore[attr-defined]
+        if message.analyzed:
+            return []
+        raise DomainError(
+            "source_changed", "The source changed during analysis. Analyze it again.", 409
+        )
     proposals = []
+    fields: set[str] = set()
     for item in result.facts:
         if (
             item.field not in PreferenceInput.model_fields
+            or item.field in fields
             or item.quote not in message.body
             or not evidence_supports_value(item.value, item.quote)
         ):
@@ -261,6 +288,7 @@ def analyze_email(db: Session, actor: Principal, message: Communication) -> list
             raise DomainError(
                 "unsupported_evidence", "An extracted value did not match its field type.", 422
             ) from exc
+        fields.add(item.field)
         changes = checked.model_dump(exclude_unset=True)
         db.add(
             Fact(
@@ -292,11 +320,15 @@ def analyze_email(db: Session, actor: Principal, message: Communication) -> list
                 f"extract:{message.id}:{item.field}",
             )
         )
+    quotes: set[str] = set()
     for commitment in result.commitments:
         if commitment.quote not in message.body:
             raise DomainError(
                 "unsupported_evidence", "A commitment lacked valid source evidence.", 422
             )
+        if commitment.quote in quotes:
+            continue
+        quotes.add(commitment.quote)
         # Relative dates are intentionally left for human review; the model cannot invent a deadline.
         db.add(
             Commitment(

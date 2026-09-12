@@ -1,3 +1,4 @@
+import json
 import logging
 import time
 from datetime import timedelta
@@ -27,21 +28,51 @@ from realty.models import (
 )
 from realty.repository import insert_for, require
 from realty.schemas import ActionInput
-from realty.security import Principal, audit
+from realty.security import Principal, audit, digest
 
 log = logging.getLogger("realty.worker")
 
 
 def enqueue(db: Session, org_id: str, kind: str, payload: dict[str, Any], dedupe: str) -> Job:
-    db.execute(
-        insert_for(db, Job)
-        .values(org_id=org_id, kind=kind, payload=payload, dedupe_key=dedupe)
-        .on_conflict_do_nothing(index_elements=[Job.org_id, Job.dedupe_key])
+    if db.info.get("org_id") not in {None, org_id}:
+        raise DomainError("not_found", "This workspace is unavailable.", 404)
+    resource_key = sync_resource(kind, payload)
+    lookup = Job.dedupe_key == dedupe
+    if resource_key:
+        lookup = or_(
+            lookup, (Job.resource_key == resource_key) & Job.status.in_(["queued", "running"])
+        )
+    for _ in range(3):
+        db.execute(
+            insert_for(db, Job)
+            .values(
+                org_id=org_id,
+                kind=kind,
+                payload=payload,
+                dedupe_key=dedupe,
+                resource_key=resource_key,
+            )
+            .on_conflict_do_nothing()
+        )
+        job = db.scalar(select(Job).where(Job.org_id == org_id, lookup))
+        if job is not None:
+            return job
+        # An active job may have finished between the conflict and the lookup.
+    raise DomainError("job_conflict", "Could not reserve the background job.", 409)
+
+
+def sync_resource(kind: str, payload: dict[str, Any]) -> str | None:
+    if kind not in {"gmail_sync", "calendar_sync"}:
+        return None
+    return digest(
+        json.dumps(
+            [
+                kind,
+                payload.get("user_id"),
+                payload.get("calendar_id", "primary") if kind == "calendar_sync" else None,
+            ]
+        )
     )
-    job = db.scalar(select(Job).where(Job.org_id == org_id, Job.dedupe_key == dedupe))
-    if job is None:
-        raise DomainError("job_conflict", "Could not reserve the background job.", 409)
-    return job
 
 
 def emit(db: Session, actor: Principal, event: str, target: str) -> None:
@@ -173,7 +204,7 @@ def dispatch(db: Session, job: Job) -> None:
         action = require(db, AIAction, job.payload["action_id"])
         if job.payload.get("approval_version", action.version) != action.version:
             return  # An old delivery cannot execute or invalidate a later human decision.
-        execute(db, job.payload["action_id"])
+        execute(db, job.payload["action_id"], job.payload.get("approval_version"))
         return
     user_id = job.payload.get("user_id")
     member = db.scalar(select(Membership).where(Membership.user_id == user_id))
@@ -236,7 +267,10 @@ def tick() -> bool:
         db.info["org_id"] = job.org_id
         if was_running and job.kind == "execute_action":
             action = require(db, AIAction, job.payload["action_id"])
-            if action.status == "executing":
+            if (
+                action.status == "executing"
+                and job.payload.get("approval_version", action.version) == action.version
+            ):
                 action.status, action.error_code = "uncertain", "worker_interrupted"
                 job.status = "dead"
                 db.add(
@@ -281,12 +315,22 @@ def tick() -> bool:
             terminal_action = False
             if job.kind == "execute_action":
                 action = require(db, AIAction, job.payload["action_id"])
-                if action.status == "executing":
+                same_approval = (
+                    job.payload.get("approval_version", action.version) == action.version
+                )
+                if same_approval and action.status == "executing":
                     action.status, action.error_code = "uncertain", "execution_interrupted"
                     code = "external_uncertain"
-                elif action.status == "approved" and (
-                    (isinstance(exc, DomainError) and code not in {"not_due", "already_executing"})
-                    or job.attempts >= 5
+                elif (
+                    same_approval
+                    and action.status == "approved"
+                    and (
+                        (
+                            isinstance(exc, DomainError)
+                            and code not in {"not_due", "already_executing"}
+                        )
+                        or job.attempts >= 5
+                    )
                 ):
                     action.status, action.error_code = "failed", code
                     terminal_action = True
