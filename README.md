@@ -82,7 +82,7 @@ python -m ruff format --check backend
 python -m mypy backend/realty
 python -m pytest
 python -m alembic check
-python -m pip_audit -r requirements.lock --disable-pip
+python -m pip_audit -r requirements.lock --disable-pip --no-deps
 npm run lint
 npm run typecheck
 npm run format:check
@@ -94,4 +94,4 @@ Start the API and worker on an isolated demo database, then `npx playwright inst
 
 ## Documentation
 
-[Architecture](docs/architecture.md) · [Setup](docs/setup.md) · [Environment](docs/environment.md) · [Security](docs/security.md) · [AI design](docs/ai-architecture.md) · [Google](docs/google-integration.md) · [Billing](docs/billing.md) · [Database](docs/database.md) · [Deployment](docs/deployment.md) · [Testing](docs/testing.md) · [Troubleshooting](docs/troubleshooting.md) · [Acceptance](docs/acceptance.md)
+[Architecture](docs/architecture.md) Â· [Setup](docs/setup.md) Â· [Environment](docs/environment.md) Â· [Security](docs/security.md) Â· [AI design](docs/ai-architecture.md) Â· [Google](docs/google-integration.md) Â· [Billing](docs/billing.md) Â· [Database](docs/database.md) Â· [Deployment](docs/deployment.md) Â· [Testing](docs/testing.md) Â· [Troubleshooting](docs/troubleshooting.md) Â· [Acceptance](docs/acceptance.md)

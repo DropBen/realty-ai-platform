@@ -1,0 +1,83 @@
+name: RealtyAI verification
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: verification-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        database: [sqlite, postgres]
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: realty_test
+          POSTGRES_USER: realty
+          POSTGRES_PASSWORD: test-only
+        ports: ['5432:5432']
+        options: --health-cmd "pg_isready -U realty -d realty_test" --health-interval 5s --health-retries 10
+    env:
+      PYTHONPATH: backend
+      TEST_DATABASE_URL: ${{ matrix.database == 'postgres' && 'postgresql+psycopg://realty:test-only@localhost:5432/realty_test' || 'sqlite://' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12', cache: pip}
+      - run: pip install -r requirements.lock
+      - run: python -m ruff check backend
+      - run: python -m ruff format --check backend
+      - run: python -m mypy backend/realty
+      - run: python -m pytest --cov=realty --cov-report=xml
+      - run: python -m alembic upgrade head
+      - run: python -m alembic check
+      - run: python -m pip_audit -r requirements.lock --disable-pip --no-deps
+  frontend:
+    runs-on: ubuntu-latest
+    env:
+      PYTHONPATH: backend
+      APP_ORIGIN: http://localhost:8000
+      CI: 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '24', cache: npm}
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12', cache: pip}
+      - run: npm ci
+      - run: pip install -r requirements.lock
+      - run: npm run lint
+      - run: npm run format:check
+      - run: npm run build
+      - run: npm audit --audit-level=high
+      - run: npx playwright install --with-deps chromium
+      - run: python -m alembic upgrade head
+      - run: python -m realty.seed
+      - name: Start API and worker
+        run: |
+          python -m uvicorn realty.main:app --host 127.0.0.1 --port 8000 --no-access-log > api.log 2>&1 &
+          python -m realty.jobs > worker.log 2>&1 &
+          for attempt in $(seq 1 30); do curl --fail http://localhost:8000/health/ready && break; sleep 1; done
+      - run: npm run test:e2e
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: browser-test-results
+          path: |
+            playwright-report/
+            test-results/
+            api.log
+            worker.log
+  container:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t realtyai:verify .
+      - run: az bicep build --file infra/apps.bicep --outfile /tmp/realty-template.json

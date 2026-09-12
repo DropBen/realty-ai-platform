@@ -1,0 +1,41 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "realty-ai-platform"
+version = "0.1.0"
+description = "Tenant-isolated real-estate CRM and approval-driven AI assistant"
+requires-python = ">=3.12"
+dependencies = [
+  "fastapi>=0.115,<1", "uvicorn[standard]>=0.34,<1", "sqlalchemy>=2.0.38,<2.1",
+  "alembic>=1.15,<2", "pydantic-settings>=2.8,<3", "email-validator>=2.2,<3",
+  "httpx>=0.28,<1", "cryptography>=44", "python-multipart>=0.0.20",
+  "psycopg[binary]>=3.2,<4", "stripe>=12,<15", "pypdf>=6,<7",
+  "azure-storage-blob>=12.25,<13"
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.3,<10", "pytest-cov>=6,<8", "ruff>=0.11,<1", "mypy>=1.15,<2", "pip-audit>=2.8,<3", "respx>=0.22,<1"]
+
+[tool.setuptools.packages.find]
+where = ["backend"]
+
+[tool.pytest.ini_options]
+testpaths = ["backend/tests"]
+addopts = "-q --strict-markers"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "I", "UP", "B"]
+ignore = ["B008"]
+
+[tool.mypy]
+python_version = "3.12"
+files = ["backend/realty"]
+check_untyped_defs = true
+disallow_untyped_defs = true
+ignore_missing_imports = true

@@ -1,0 +1,14 @@
+.git
+.env
+.env.*
+node_modules
+.venv*
+data
+dist
+test-results
+playwright-report
+__pycache__
+.pytest_cache
+.mypy_cache
+.ruff_cache
+work
