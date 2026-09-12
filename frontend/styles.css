@@ -4001,3 +4001,67 @@ body {
     scroll-behavior: auto !important;
   }
 }
+
+.security-sections {
+  display: grid;
+  gap: 22px;
+  max-width: 920px;
+}
+.security-card {
+  padding: 26px;
+}
+.security-card h2 {
+  margin-top: 0;
+}
+.security-card .button-group {
+  margin-top: 18px;
+  flex-wrap: wrap;
+}
+.device-row {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  justify-content: space-between;
+  padding: 18px 0;
+  border-top: 1px solid var(--line);
+}
+.device-row > div {
+  min-width: 0;
+}
+.device-row p {
+  overflow-wrap: anywhere;
+  font-size: 0.875rem;
+  margin: 7px 0;
+}
+.account-access {
+  width: min(580px, calc(100% - 32px));
+  margin: 70px auto;
+}
+.account-access h1 {
+  font-size: 1.7rem;
+}
+.setup-key,
+.recovery-codes {
+  display: block;
+  padding: 16px;
+  border-radius: 8px;
+  background: #f0f5ef;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  font-size: 1rem;
+}
+.tabs {
+  overflow-x: auto;
+  max-width: 100%;
+}
+@media (max-width: 760px) {
+  .security-card {
+    padding: 20px;
+  }
+  .device-row {
+    flex-wrap: wrap;
+  }
+  .account-access {
+    margin-top: 25px;
+  }
+}

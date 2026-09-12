@@ -30,6 +30,15 @@ class Settings(BaseSettings):
     storage_connection_string: str = ""
     storage_container: str = "documents"
     log_level: str = "INFO"
+    require_email_verification: bool = False
+    mail_backend: str = "disabled"
+    mail_from: str = "RealtyAI <noreply@example.com>"
+    smtp_host: str = ""
+    smtp_port: int = 587
+    smtp_username: str = ""
+    smtp_password: str = ""
+    smtp_starttls: bool = True
+    mail_outbox_path: str = "./data/account-mail"
 
     @model_validator(mode="after")
     def production_guards(self) -> "Settings":
@@ -40,6 +49,18 @@ class Settings(BaseSettings):
                 raise ValueError("Production requires PostgreSQL")
             if not self.app_origin.startswith("https://"):
                 raise ValueError("Production requires an HTTPS application origin")
+            if not self.require_email_verification or self.mail_backend != "smtp":
+                raise ValueError("Production requires email verification and SMTP delivery")
+            if not self.smtp_host or not self.smtp_starttls or "example.com" in self.mail_from:
+                raise ValueError("Production requires configured TLS mail and a verified sender")
+        if self.mail_backend not in {"disabled", "outbox", "smtp"}:
+            raise ValueError("Choose disabled, outbox or smtp for account mail")
+        if self.demo_mode and self.mail_backend == "smtp":
+            raise ValueError("Demo mode does not send external account email")
+        if self.encryption_key:
+            from cryptography.fernet import Fernet
+
+            Fernet(self.encryption_key.encode())
         if self.demo_mode and self.ai_provider != "disabled":
             raise ValueError("Demo data must not be sent to an external AI provider")
         return self

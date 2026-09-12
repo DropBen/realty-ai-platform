@@ -11,6 +11,9 @@ from sqlalchemy.pool import StaticPool
 os.environ["DEMO_MODE"] = "true"
 os.environ["APP_ENV"] = "test"
 os.environ["AI_PROVIDER"] = "disabled"
+os.environ["MAIL_BACKEND"] = "disabled"
+os.environ["REQUIRE_EMAIL_VERIFICATION"] = "false"
+os.environ["ENCRYPTION_KEY"] = ""
 
 from realty.config import settings  # noqa: E402
 from realty.db import Base, get_db  # noqa: E402

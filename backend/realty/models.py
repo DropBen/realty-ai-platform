@@ -36,6 +36,11 @@ class User(Record, Base):
     email: Mapped[str] = mapped_column(String(254), unique=True)
     name: Mapped[str] = mapped_column(String(160))
     password_hash: Mapped[str] = mapped_column(Text)
+    email_verified_at: Mapped[datetime | None] = mapped_column(DateTime)
+    mfa_ciphertext: Mapped[str | None] = mapped_column(Text)
+    mfa_pending_ciphertext: Mapped[str | None] = mapped_column(Text)
+    mfa_pending_until: Mapped[datetime | None] = mapped_column(DateTime)
+    mfa_last_counter: Mapped[int] = mapped_column(Integer, default=-1, server_default="-1")
 
 
 class Membership(TenantRecord, Base):
@@ -55,6 +60,34 @@ class LoginSession(Record, Base):
     token_hash: Mapped[str] = mapped_column(String(64), unique=True)
     csrf_hash: Mapped[str] = mapped_column(String(64))
     expires_at: Mapped[datetime] = mapped_column(DateTime, index=True)
+    user_agent: Mapped[str] = mapped_column(String(250), default="", server_default="")
+    mfa_verified_at: Mapped[datetime | None] = mapped_column(DateTime)
+
+
+class AuthToken(Record, Base):
+    """Identity-scoped one-use tokens; never serialized through tenant APIs."""
+
+    __tablename__ = "auth_tokens"
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    purpose: Mapped[str] = mapped_column(String(30))
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime, index=True)
+    consumed_at: Mapped[datetime | None] = mapped_column(DateTime)
+
+
+class RecoveryCode(Record, Base):
+    __tablename__ = "recovery_codes"
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    code_hash: Mapped[str] = mapped_column(String(64), unique=True)
+    used_at: Mapped[datetime | None] = mapped_column(DateTime)
+
+
+class AccountMail(Record, Base):
+    __tablename__ = "account_mail"
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    purpose: Mapped[str] = mapped_column(String(40))
+    body_ciphertext: Mapped[str | None] = mapped_column(Text)
+    sent_at: Mapped[datetime | None] = mapped_column(DateTime)
 
 
 class RateBucket(Base):

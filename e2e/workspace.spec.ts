@@ -1,13 +1,20 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type BrowserContext, type Page } from "@playwright/test";
+
+// Exercise sign-in once per worker, then reuse its real server session. Account
+// recovery tests separately cover authentication without tripping abuse limits.
+let demoCookies: Awaited<ReturnType<BrowserContext["cookies"]>> | undefined;
 
 async function signIn(page: Page) {
+  if (demoCookies) await page.context().addCookies(demoCookies);
   await page.goto("/");
-  await page.getByRole("button", { name: "Explore demo workspace" }).click();
+  if (!demoCookies)
+    await page.getByRole("button", { name: "Explore demo workspace" }).click();
   await expect(
     page.getByRole("heading", {
       name: /Good (morning|afternoon|evening), Sarah/,
     }),
   ).toBeVisible();
+  demoCookies = await page.context().cookies();
 }
 
 test("demo dashboard, navigation and mobile fit", async ({

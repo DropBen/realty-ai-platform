@@ -15,7 +15,7 @@ from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from starlette.responses import Response
 
-from realty import api_account, api_auth, api_crm, api_work
+from realty import api_account, api_auth, api_crm, api_identity, api_work
 from realty.config import settings
 from realty.db import SessionLocal
 from realty.errors import DomainError
@@ -204,7 +204,13 @@ def public_config() -> dict[str, Any]:
     return {"demo_mode": settings.demo_mode, "version": "0.1.0"}
 
 
-for router in [api_auth.router, api_crm.router, api_work.router, api_account.router]:
+for router in [
+    api_auth.router,
+    api_identity.router,
+    api_crm.router,
+    api_work.router,
+    api_account.router,
+]:
     app.include_router(router, prefix="/api/v1")
 
 if Path("dist/assets").exists():

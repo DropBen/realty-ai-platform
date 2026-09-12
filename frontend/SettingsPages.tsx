@@ -16,6 +16,7 @@ import {
   Workflow as WorkflowIcon,
 } from "lucide-react";
 import { useSession } from "./App";
+import AccountSecurity from "./AccountSecurity";
 import { api, date, post, put, useApi, words } from "./api";
 import {
   Badge,
@@ -87,7 +88,7 @@ function Settings() {
         description="Connections, people and the controls that keep your business yours."
       />
       <div className="tabs">
-        {["connections", "team", "activity", "account"].map((t) => (
+        {["connections", "team", "activity", "security", "account"].map((t) => (
           <button
             key={t}
             className={tab === t ? "active" : ""}
@@ -97,6 +98,7 @@ function Settings() {
           </button>
         ))}
       </div>
+      {tab === "security" && <AccountSecurity />}
       {tab === "connections" &&
         (query.isLoading ? (
           <Loading />

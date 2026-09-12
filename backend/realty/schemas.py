@@ -20,6 +20,7 @@ class Input(BaseModel):
 
 
 class Register(Input):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=False)
     name: Name
     email: EmailStr
     password: str = Field(min_length=12, max_length=128)
@@ -27,6 +28,7 @@ class Register(Input):
 
 
 class Login(Input):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=False)
     email: EmailStr
     password: str = Field(min_length=1, max_length=128)
 

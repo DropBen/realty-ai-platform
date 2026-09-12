@@ -35,6 +35,7 @@ jobs:
       - run: python -m ruff check backend
       - run: python -m ruff format --check backend
       - run: python -m mypy backend/realty
+      - run: python -m bandit -r backend/realty -ll -q
       - run: python -m pytest --cov=realty --cov-report=xml
       - run: python -m alembic upgrade head
       - run: python -m alembic check
@@ -45,6 +46,7 @@ jobs:
       PYTHONPATH: backend
       APP_ORIGIN: http://localhost:8000
       CI: 'true'
+      MAIL_BACKEND: outbox
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -60,6 +62,9 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - run: python -m alembic upgrade head
       - run: python -m realty.seed
+      - name: Configure isolated account-mail encryption
+        run: |
+          python -c "from cryptography.fernet import Fernet; import os; key=Fernet.generate_key().decode(); print('::add-mask::'+key); open(os.environ['GITHUB_ENV'],'a').write('ENCRYPTION_KEY='+key+'\n')"
       - name: Start API and worker
         run: |
           python -m uvicorn realty.main:app --host 127.0.0.1 --port 8000 --no-access-log > api.log 2>&1 &

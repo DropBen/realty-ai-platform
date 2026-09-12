@@ -7,7 +7,7 @@ from datetime import timedelta
 from typing import Any
 
 from fastapi import Depends, Request, Response
-from sqlalchemy import select
+from sqlalchemy import case, select
 from sqlalchemy.orm import Session
 
 from realty.config import settings
@@ -79,19 +79,28 @@ def audit(
     )
 
 
-def rate_limit(db: Session, key: str, limit: int = 120) -> None:
-    """Database-backed fixed window. Lock protects counts across API instances."""
-    window = int(time.time()) // 60
-    bucket = db.scalar(select(RateBucket).where(RateBucket.key == key).with_for_update())
-    if not bucket:
-        db.add(RateBucket(key=key, window=window, count=1))
-    elif bucket.window != window:
-        bucket.window, bucket.count = window, 1
-    elif bucket.count >= limit:
-        raise DomainError("rate_limited", "Too many requests. Try again in a minute.", 429)
-    else:
-        bucket.count += 1
-    db.flush()
+def rate_limit(db: Session, key: str, limit: int = 120, seconds: int = 60) -> None:
+    """Atomic upsert avoids the first-request race across API instances.
+
+    Call at request entry, then commit before business work so rejected requests
+    still consume their allowance and slow providers do not hold the bucket lock.
+    """
+    from sqlalchemy.dialects.postgresql import insert as pg_insert
+    from sqlalchemy.dialects.sqlite import insert as sqlite_insert
+
+    window = int(time.time()) // seconds
+    insert = sqlite_insert if db.get_bind().dialect.name == "sqlite" else pg_insert
+    statement = insert(RateBucket).values(key=digest(key), window=window, count=1)
+    limited = statement.on_conflict_do_update(
+        index_elements=[RateBucket.key],
+        set_={
+            "window": window,
+            "count": case((RateBucket.window != window, 1), else_=RateBucket.count + 1),
+        },
+        where=(RateBucket.window != window) | (RateBucket.count < limit),
+    ).returning(RateBucket.count)
+    if db.scalar(limited) is None:
+        raise DomainError("rate_limited", "Too many requests. Please try again later.", 429)
 
 
 def principal(request: Request, db: Session = Depends(get_db, scope="function")) -> Principal:
@@ -110,16 +119,38 @@ def principal(request: Request, db: Session = Depends(get_db, scope="function"))
     )
     if not membership:
         raise DomainError("forbidden", "Organization access has been removed.", 403)
+    user = db.get(User, session.user_id)
+    if not user or (user.mfa_ciphertext and session.mfa_verified_at is None):
+        raise DomainError("unauthenticated", "Sign in with your second factor to continue.", 401)
     if request.method not in {"GET", "HEAD", "OPTIONS"}:
         csrf = request.headers.get("x-csrf-token", "")
         if not hmac.compare_digest(digest(csrf), session.csrf_hash):
             raise DomainError("csrf", "Session verification failed. Refresh and try again.", 403)
     db.info["org_id"] = session.org_id
     rate_limit(db, "user:" + session.user_id)
+    db.commit()
+    if settings.require_email_verification and user.email_verified_at is None:
+        allowed = {
+            "/api/v1/auth/me",
+            "/api/v1/auth/logout",
+            "/api/v1/auth/email/request",
+            "/api/v1/auth/email/verify",
+        }
+        if request.url.path not in allowed:
+            raise DomainError(
+                "email_unverified", "Verify your email address to open your workspace.", 403
+            )
     return Principal(session.user_id, session.org_id, membership.role, session.id)
 
 
-def new_session(db: Session, user: User, org: Organization, response: Response) -> str:
+def new_session(
+    db: Session,
+    user: User,
+    org: Organization,
+    response: Response,
+    user_agent: str = "",
+    mfa_verified: bool = False,
+) -> str:
     token, csrf = secrets.token_urlsafe(48), secrets.token_urlsafe(32)
     db.add(
         LoginSession(
@@ -128,6 +159,8 @@ def new_session(db: Session, user: User, org: Organization, response: Response) 
             token_hash=digest(token),
             csrf_hash=digest(csrf),
             expires_at=now() + timedelta(hours=settings.session_hours),
+            user_agent=user_agent[:250],
+            mfa_verified_at=now() if mfa_verified else None,
         )
     )
     response.set_cookie(

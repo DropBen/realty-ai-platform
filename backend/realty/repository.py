@@ -5,13 +5,23 @@ from sqlalchemy.orm import Session
 
 from realty.db import Base, TenantRecord
 from realty.errors import DomainError
-from realty.models import Contact, Membership, Property
+from realty.models import Contact, Membership, Property, User
 
 T = TypeVar("T", bound=Base)
 PRIVATE_FIELDS = {"password_hash", "token_ciphertext", "token_hash", "csrf_hash", "storage_key"}
 
 
 def public(row: Any) -> dict[str, Any]:
+    if isinstance(row, User):
+        return {
+            "id": row.id,
+            "name": row.name,
+            "email": row.email,
+            "email_verified_at": row.email_verified_at,
+            "mfa_enabled": bool(row.mfa_ciphertext),
+            "created_at": row.created_at,
+            "updated_at": row.updated_at,
+        }
     return {
         c.key: getattr(row, c.key)
         for c in inspect(row).mapper.column_attrs

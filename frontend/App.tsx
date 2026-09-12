@@ -4,6 +4,7 @@ import {
   Suspense,
   useContext,
   useEffect,
+  useRef,
   useState,
   type FormEvent,
 } from "react";
@@ -56,6 +57,7 @@ import {
 } from "./components";
 import type { Session } from "./types";
 import Dashboard from "./Dashboard";
+import { AccountAccess, VerificationRequired } from "./AccountSecurity";
 
 const Contacts = lazy(() => import("./Contacts"));
 const Profile = lazy(() => import("./Profile"));
@@ -101,6 +103,8 @@ const nav = [
 ] as const;
 
 function AuthScreen() {
+  const [mfa, setMfa] = useState(false);
+  const [code, setCode] = useState("");
   const [register, setRegister] = useState(false);
   const [name, setName] = useState("");
   const [organization, setOrganization] = useState("");
@@ -110,16 +114,26 @@ function AuthScreen() {
   const config = useApi<{ demo_mode: boolean }>("/config");
   const submit = async (e: FormEvent) => {
     e.preventDefault();
-    await run(
+    const result = await run(
       () =>
-        post(
-          register ? "/auth/register" : "/auth/login",
-          register
-            ? { name, organization, email, password }
-            : { email, password },
+        post<{ mfa_required?: boolean }>(
+          mfa
+            ? "/auth/mfa/verify"
+            : register
+              ? "/auth/register"
+              : "/auth/login",
+          mfa
+            ? { code }
+            : register
+              ? { name, organization, email, password }
+              : { email, password },
         ),
-      "Welcome to your workspace.",
+      mfa ? "Sign-in verified." : "Sign-in request processed.",
     );
+    if (result?.mfa_required) {
+      setMfa(true);
+      setPassword("");
+    }
   };
   return (
     <main className="auth-page">
@@ -167,56 +181,89 @@ function AuthScreen() {
               : "Your relationships are ready when you are."}
           </p>
           <form onSubmit={submit}>
-            {register && (
+            {mfa ? (
+              <Field
+                label="Authenticator or recovery code"
+                hint="Enter your six-digit authenticator code or an unused recovery code."
+              >
+                <input
+                  value={code}
+                  onChange={(e) => setCode(e.target.value)}
+                  autoComplete="one-time-code"
+                  maxLength={40}
+                  required
+                  autoFocus
+                />
+              </Field>
+            ) : (
               <>
-                <Field label="Full name">
+                {register && (
+                  <>
+                    <Field label="Full name">
+                      <input
+                        autoComplete="name"
+                        required
+                        value={name}
+                        onChange={(e) => setName(e.target.value)}
+                      />
+                    </Field>
+                    <Field label="Organization">
+                      <input
+                        autoComplete="organization"
+                        required
+                        value={organization}
+                        onChange={(e) => setOrganization(e.target.value)}
+                      />
+                    </Field>
+                  </>
+                )}
+                <Field label="Email address">
                   <input
-                    autoComplete="name"
+                    type="email"
                     required
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
+                    autoComplete="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
                   />
                 </Field>
-                <Field label="Organization">
+                <Field
+                  label="Password"
+                  hint={register ? "Use at least 12 characters." : undefined}
+                >
                   <input
-                    autoComplete="organization"
+                    type="password"
                     required
-                    value={organization}
-                    onChange={(e) => setOrganization(e.target.value)}
+                    minLength={register ? 12 : 1}
+                    autoComplete={
+                      register ? "new-password" : "current-password"
+                    }
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
                   />
                 </Field>
               </>
             )}
-            <Field label="Email address">
-              <input
-                type="email"
-                required
-                autoComplete="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-              />
-            </Field>
-            <Field
-              label="Password"
-              hint={register ? "Use at least 12 characters." : undefined}
-            >
-              <input
-                type="password"
-                required
-                minLength={register ? 12 : 1}
-                autoComplete={register ? "new-password" : "current-password"}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-              />
-            </Field>
             <Submit
               busy={busy}
-              label={register ? "Create account" : "Sign in"}
+              label={
+                mfa ? "Verify sign in" : register ? "Create account" : "Sign in"
+              }
             />
           </form>
+          {!register && (
+            <p>
+              <a className="text-button" href="/account-access">
+                Forgot your password?
+              </a>
+            </p>
+          )}
           <button
             className="text-button"
-            onClick={() => setRegister(!register)}
+            onClick={() => {
+              setRegister(!register);
+              setMfa(false);
+              setCode("");
+            }}
           >
             {register
               ? "Already have an account? Sign in"
@@ -254,6 +301,11 @@ function AuthScreen() {
 
 function Shell({ session }: { session: Session }) {
   const [mobile, setMobile] = useState(false);
+  const [narrow, setNarrow] = useState(
+    () => matchMedia("(max-width: 760px)").matches,
+  );
+  const navigation = useRef<HTMLElement>(null);
+  const menuButton = useRef<HTMLButtonElement>(null);
   const [palette, setPalette] = useState(false);
   const [search, setSearch] = useState("");
   const [orgMenu, setOrgMenu] = useState(false);
@@ -264,6 +316,42 @@ function Shell({ session }: { session: Session }) {
   const organizations = useApi<{
     items: { id: string; name: string; role: string }[];
   }>("/account/organizations", orgMenu);
+  useEffect(() => {
+    const media = matchMedia("(max-width: 760px)");
+    const changed = () => setNarrow(media.matches);
+    media.addEventListener("change", changed);
+    return () => media.removeEventListener("change", changed);
+  }, []);
+  useEffect(() => {
+    if (!mobile || !narrow) return;
+    const controls = () =>
+      Array.from(
+        navigation.current?.querySelectorAll<HTMLElement>("a, button") || [],
+      ).filter((element) => element.getClientRects().length);
+    controls()[0]?.focus();
+    const keyboard = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setMobile(false);
+      if (event.key === "Tab") {
+        const items = controls();
+        const first = items[0],
+          last = items[items.length - 1];
+        if (event.shiftKey && document.activeElement === first) {
+          event.preventDefault();
+          last?.focus();
+        }
+        if (!event.shiftKey && document.activeElement === last) {
+          event.preventDefault();
+          first?.focus();
+        }
+      }
+    };
+    document.addEventListener("keydown", keyboard);
+    const trigger = menuButton.current;
+    return () => {
+      document.removeEventListener("keydown", keyboard);
+      trigger?.focus();
+    };
+  }, [mobile, narrow]);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === "k") {
@@ -284,7 +372,15 @@ function Shell({ session }: { session: Session }) {
         Skip to content
       </a>
       <div className="app-shell">
-        <aside className={`sidebar ${mobile ? "open" : ""}`}>
+        <aside
+          ref={navigation}
+          id="workspace-navigation"
+          className={`sidebar ${mobile ? "open" : ""}`}
+          inert={narrow && !mobile}
+          role={narrow && mobile ? "dialog" : undefined}
+          aria-modal={narrow && mobile ? true : undefined}
+          aria-label="Workspace navigation"
+        >
           <div className="brand-row">
             <Link to="/" className="brand">
               <span className="brand-icon">
@@ -332,10 +428,10 @@ function Shell({ session }: { session: Session }) {
             ))}
           </nav>
           <div className="sidebar-bottom">
-            <NavLink to="/settings">
+            <NavLink to="/settings" onClick={() => setMobile(false)}>
               <Settings2 size={18} /> Settings
             </NavLink>
-            <NavLink to="/billing">
+            <NavLink to="/billing" onClick={() => setMobile(false)}>
               <CreditCard size={18} /> Billing
             </NavLink>
             <div className="sidebar-person">
@@ -358,12 +454,15 @@ function Shell({ session }: { session: Session }) {
             </div>
           </div>
         </aside>
-        <div className="main-shell">
+        <div className="main-shell" inert={narrow && mobile}>
           <header className="topbar">
             <div className="topbar-left">
               <button
                 className="icon-button mobile-menu"
+                ref={menuButton}
                 aria-label="Open navigation"
+                aria-controls="workspace-navigation"
+                aria-expanded={mobile}
                 onClick={() => setMobile(true)}
               >
                 <Menu size={21} />
@@ -538,6 +637,7 @@ function Shell({ session }: { session: Session }) {
 
 export default function App() {
   const session = useApi<Session>("/auth/me");
+  if (window.location.pathname === "/account-access") return <AccountAccess />;
   if (session.isLoading) return <Loading />;
   if (
     session.error &&
@@ -545,5 +645,10 @@ export default function App() {
   )
     return <ErrorState error={session.error} retry={() => session.refetch()} />;
   if (!session.data) return <AuthScreen />;
+  if (
+    session.data.require_email_verification &&
+    !session.data.user.email_verified_at
+  )
+    return <VerificationRequired email={session.data.user.email} />;
   return <Shell session={session.data} />;
 }

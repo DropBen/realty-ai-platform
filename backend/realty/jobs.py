@@ -155,6 +155,11 @@ def workflow_event(db: Session, actor: Principal, event: str, target: str) -> No
 
 
 def dispatch(db: Session, job: Job) -> None:
+    if job.kind == "account_mail":
+        from realty.identity import deliver_mail
+
+        deliver_mail(db, job.payload)
+        return
     if job.kind == "execute_action":
         execute(db, job.payload["action_id"])
         return

@@ -16,7 +16,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8.3,<10", "pytest-cov>=6,<8", "ruff>=0.11,<1", "mypy>=1.15,<2", "pip-audit>=2.8,<3", "respx>=0.22,<1"]
+dev = ["pytest>=8.3,<10", "pytest-cov>=6,<8", "ruff>=0.11,<1", "mypy>=1.15,<2", "pip-audit>=2.8,<3", "respx>=0.22,<1", "bandit>=1.9,<2"]
 
 [tool.setuptools.packages.find]
 where = ["backend"]

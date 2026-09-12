@@ -153,7 +153,13 @@ export interface Page<T> {
   page_size: number;
 }
 export interface Session {
-  user: { id: string; name: string; email: string };
+  user: {
+    id: string;
+    name: string;
+    email: string;
+    email_verified_at?: string | null;
+    mfa_enabled?: boolean;
+  };
   organization: {
     id: string;
     name: string;
@@ -162,6 +168,7 @@ export interface Session {
   };
   role: string;
   demo_mode?: boolean;
+  require_email_verification?: boolean;
 }
 export interface Integrations {
   google_configured: boolean;
