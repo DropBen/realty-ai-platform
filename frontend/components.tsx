@@ -165,10 +165,13 @@ export function Modal({
 }) {
   const ref = useRef<HTMLDialogElement>(null);
   const opener = useRef(
-    document.activeElement instanceof HTMLElement ? document.activeElement : null,
+    document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null,
   );
   useEffect(() => {
     const dialog = ref.current;
+    const returnFocus = opener.current;
     dialog?.showModal();
     dialog
       ?.querySelector<HTMLElement>(
@@ -178,7 +181,7 @@ export function Modal({
     return () => {
       dialog?.close();
       queueMicrotask(() => {
-        if (!dialog?.open && opener.current?.isConnected) opener.current.focus();
+        if (!dialog?.open && returnFocus?.isConnected) returnFocus.focus();
       });
     };
   }, []);
