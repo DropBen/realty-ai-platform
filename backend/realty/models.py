@@ -317,6 +317,7 @@ class AIAction(TenantRecord, Base):
     status: Mapped[str] = mapped_column(String(30), default="pending")
     approved_by: Mapped[str | None] = mapped_column(ForeignKey("users.id"))
     approved_hash: Mapped[str | None] = mapped_column(String(64))
+    approval_basis: Mapped[dict[str, Any] | None] = mapped_column(JSON)
     scheduled_at: Mapped[datetime | None] = mapped_column(DateTime)
     expires_at: Mapped[datetime | None] = mapped_column(DateTime)
     result: Mapped[dict[str, Any] | None] = mapped_column(JSON)
@@ -378,6 +379,7 @@ class OAuthState(Record, Base):
     __tablename__ = "oauth_states"
     state_hash: Mapped[str] = mapped_column(String(64), unique=True)
     session_id: Mapped[str] = mapped_column(ForeignKey("sessions.id"))
+    org_id: Mapped[str] = mapped_column(ForeignKey("organizations.id", ondelete="CASCADE"))
     verifier: Mapped[str] = mapped_column(String(100))
     expires_at: Mapped[datetime] = mapped_column(DateTime)
 
@@ -393,6 +395,7 @@ class Subscription(TenantRecord, Base):
     period_end: Mapped[datetime | None] = mapped_column(DateTime)
     cancel_at_period_end: Mapped[bool] = mapped_column(Boolean, default=False)
     last_event_created: Mapped[int] = mapped_column(Integer, default=0)
+    checkout_state: Mapped[dict[str, Any] | None] = mapped_column(JSON)
 
 
 class Usage(TenantRecord, Base):

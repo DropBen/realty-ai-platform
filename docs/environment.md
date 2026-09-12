@@ -48,3 +48,9 @@ Copy `.env.example` to an ignored `.env` for local development. Production value
 Generate `ENCRYPTION_KEY` with `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"` directly in a protected terminal and store it in Key Vault. It protects Google tokens, TOTP enrollment/secrets and queued account mail. Retain the matching key for backups. Replacing it without re-encrypting existing data breaks decryption; see [operations](operations.md).
 
 Production startup rejects demo mode, insecure cookies, absent/invalid encryption, SQLite, non-HTTPS browser origin, disabled email verification, non-SMTP mail, missing host, absent STARTTLS and an example sender. Missing optional providers fail explicitly when invoked. Guards do not prove DNS ownership, TLS connectivity, deliverability, private networking, provider scopes or operational policy; those need staging validation.
+
+## Validated configuration
+
+`APP_ENV` accepts only `development`, `test`, `staging`, or `production`. Both staging and production enforce the deployed security guards, including HTTPS for APP_ORIGIN and API_ORIGIN. Origins may not contain credentials, paths, queries or fragments; a trailing slash is normalized. Unknown AI/storage/mail backend names and logging levels fail startup. Session lifetime is 1–168 hours, AI timeout 1–120 seconds, monthly allowance nonnegative, SMTP port 1–65535. Validation error text omits input values to avoid printing secrets.
+
+Turning off DEMO_MODE does not promote existing demo tenants. Their stored `is_demo` flag continues to block external Google/AI/billing/SMTP operations and keeps demo labels visible. Create a separate non-demo database/workspace for integration acceptance.

@@ -1,16 +1,17 @@
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import httpx
 import stripe
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from realty.config import settings
+from realty.db import now
 from realty.errors import DomainError
 from realty.models import Organization, Subscription, WebhookEvent
 from realty.repository import insert_for
-from realty.security import Principal, audit
+from realty.security import Principal, audit, require_live_organization
 
 
 def configured() -> bool:
@@ -30,7 +31,10 @@ def stripe_request(
             method, "https://api.stripe.com/v1/" + path, data=data, headers=headers, timeout=20
         )
         response.raise_for_status()
-        return response.json()  # type: ignore[no-any-return]
+        value = response.json()
+        if not isinstance(value, dict):
+            raise ValueError("Expected a provider object")
+        return value
     except (httpx.HTTPError, ValueError) as exc:
         raise DomainError(
             "billing_unavailable", "Billing is temporarily unavailable. Try again later.", 502
@@ -39,6 +43,7 @@ def stripe_request(
 
 def customer(db: Session, actor: Principal) -> Subscription:
     actor.require("billing")
+    require_live_organization(db, actor.org_id)
     subscription = db.scalar(select(Subscription).with_for_update())
     if not subscription:
         raise DomainError("billing_missing", "Subscription record is unavailable.", 409)
@@ -56,13 +61,36 @@ def customer(db: Session, actor: Principal) -> Subscription:
 
 
 def checkout(db: Session, actor: Principal, request_id: str) -> str:
-    subscription = customer(db, actor)
-    if subscription.subscription_id and subscription.status in {"active", "trialing", "past_due"}:
-        return portal(db, actor)
-    result = stripe_request(
-        "POST",
-        "checkout/sessions",
-        {
+    customer(db, actor)
+    subscription = locked_subscription(db)
+    terminal_subscription = None
+    if subscription.subscription_id:
+        current = stripe_request("GET", "subscriptions/" + subscription.subscription_id)
+        if (
+            current.get("id") != subscription.subscription_id
+            or current.get("customer") != subscription.customer_id
+        ):
+            raise DomainError(
+                "billing_identity_mismatch", "The current subscription could not be verified.", 502
+            )
+        if current.get("status") not in {"canceled", "incomplete_expired"}:
+            return portal(db, actor)
+        terminal_subscription = subscription.subscription_id
+    pending = subscription.checkout_state
+    if pending and pending.get("session_id"):
+        existing = stripe_request("GET", "checkout/sessions/" + pending["session_id"])
+        validate_checkout(existing, subscription.customer_id)
+        if existing["id"] != pending["session_id"]:
+            raise DomainError("billing_identity_mismatch", "The checkout identity changed.", 502)
+        if existing["status"] == "open":
+            return checkout_url(existing)
+        if existing["status"] == "complete" and (
+            not terminal_subscription or existing.get("subscription") != terminal_subscription
+        ):
+            return portal(db, actor)
+        pending = None  # Provider-confirmed expiration/cancellation permits a new checkout.
+    if not pending:
+        parameters = {
             "mode": "subscription",
             "customer": subscription.customer_id or "",
             "line_items[0][price]": settings.stripe_price_id,
@@ -71,11 +99,72 @@ def checkout(db: Session, actor: Principal, request_id: str) -> str:
             "subscription_data[metadata][org_id]": actor.org_id,
             "success_url": settings.app_origin + "/billing?checkout=complete",
             "cancel_url": settings.app_origin + "/billing?checkout=cancelled",
-        },
-        "checkout:" + actor.org_id + ":" + request_id,
-    )
+        }
+        pending = {
+            "key": "checkout:" + actor.org_id + ":" + request_id,
+            "created_at": now().isoformat(),
+            "parameters": parameters,
+        }
+        subscription.checkout_state = pending
+        db.commit()  # Preserve the exact attempt and parameters across timeouts/crashes.
+    if datetime.fromisoformat(pending["created_at"]) < now() - timedelta(hours=23):
+        raise DomainError(
+            "billing_checkout_reconcile",
+            "A previous checkout could not be confirmed. Reconcile its Stripe request before starting another.",
+            409,
+        )
+    result = stripe_request("POST", "checkout/sessions", pending["parameters"], pending["key"])
+    validate_checkout(result, subscription.customer_id)
+    subscription = locked_subscription(db)
+    if not subscription.checkout_state or subscription.checkout_state["key"] != pending["key"]:
+        raise DomainError(
+            "billing_checkout_changed", "Checkout changed. Refresh billing to continue.", 409
+        )
+    subscription.checkout_state = {**pending, "session_id": result["id"]}
     audit(db, actor, "billing.checkout_created")
-    return str(result["url"])
+    if result["status"] == "complete":
+        return portal(db, actor)
+    if result["status"] == "expired":
+        db.commit()
+        raise DomainError(
+            "billing_checkout_expired", "This checkout expired. Start checkout again.", 409
+        )
+    return checkout_url(result)
+
+
+def locked_subscription(db: Session) -> Subscription:
+    if db.get_bind().dialect.name == "sqlite":
+        db.execute(update(Subscription).values(updated_at=Subscription.updated_at))
+    subscription = db.scalar(
+        select(Subscription).with_for_update().execution_options(populate_existing=True)
+    )
+    if not subscription:
+        raise DomainError("billing_missing", "Subscription record is unavailable.", 409)
+    return subscription
+
+
+def validate_checkout(value: dict[str, Any], customer_id: str | None) -> None:
+    if (
+        not isinstance(value.get("id"), str)
+        or not value["id"]
+        or value.get("customer") != customer_id
+    ):
+        raise DomainError(
+            "billing_identity_mismatch", "The checkout customer could not be verified.", 502
+        )
+    if value.get("status") not in {"open", "complete", "expired"}:
+        raise DomainError(
+            "billing_invalid_response", "The checkout state could not be verified.", 502
+        )
+
+
+def checkout_url(value: dict[str, Any]) -> str:
+    url = value.get("url")
+    if not isinstance(url, str) or not url.startswith("https://"):
+        raise DomainError(
+            "billing_invalid_response", "The checkout URL could not be verified.", 502
+        )
+    return url
 
 
 def portal(db: Session, actor: Principal) -> str:
@@ -122,6 +211,7 @@ def webhook(db: Session, payload: bytes, signature: str) -> bool:
         # Fail, roll back event insertion and permit provider redelivery after customer setup.
         raise DomainError("unknown_customer", "Subscription customer has not been registered.", 409)
     db.info["org_id"] = subscription.org_id
+    require_live_organization(db, subscription.org_id)
     if event["created"] < subscription.last_event_created:
         return True
     # Read canonical provider state so reordered same-second events cannot regress entitlements.
@@ -143,6 +233,36 @@ def webhook(db: Session, payload: bytes, signature: str) -> bool:
         raise DomainError(
             "billing_invalid_response", "The subscription status could not be validated.", 502
         )
+    terminal = {"canceled", "incomplete_expired"}
+    if subscription.subscription_id and subscription.subscription_id != current["id"]:
+        if current["status"] in terminal:
+            # A late cancellation for a previous subscription must not cancel its replacement.
+            audit(
+                db,
+                Principal("stripe", subscription.org_id, "owner"),
+                "billing.unrelated_terminal_event",
+                subscription.id,
+                {"event_id": event["id"]},
+            )
+            return True
+        tracked = stripe_request("GET", "subscriptions/" + subscription.subscription_id)
+        if (
+            tracked.get("id") != subscription.subscription_id
+            or tracked.get("customer") != subscription.customer_id
+        ):
+            raise DomainError(
+                "billing_identity_mismatch",
+                "The existing subscription identity could not be verified.",
+                502,
+            )
+        if tracked.get("status") not in terminal:
+            # Never silently choose between two potentially billable subscriptions.
+            # Roll back the receipt so reconciliation permits a provider redelivery.
+            raise DomainError(
+                "billing_subscription_conflict",
+                "Another subscription is still open for this workspace. Reconcile it in Stripe before applying a replacement.",
+                409,
+            )
     subscription.last_event_created = event["created"]
     subscription.subscription_id = current["id"]
     subscription.status = current["status"]

@@ -79,6 +79,16 @@ def audit(
     )
 
 
+def require_live_organization(db: Session, org_id: str) -> None:
+    organization = db.get(Organization, org_id)
+    if not organization or organization.is_demo or settings.demo_mode:
+        raise DomainError(
+            "demo_isolated",
+            "Demo workspaces cannot use external services. Use a separate real workspace.",
+            403,
+        )
+
+
 def rate_limit(db: Session, key: str, limit: int = 120, seconds: int = 60) -> None:
     """Atomic upsert avoids the first-request race across API instances.
 

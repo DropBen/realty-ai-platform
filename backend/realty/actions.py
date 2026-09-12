@@ -20,7 +20,7 @@ from realty.models import (
     Task,
     Usage,
 )
-from realty.repository import require, validate_refs
+from realty.repository import locked_preference, require, validate_refs
 from realty.schemas import (
     ActionInput,
     AppointmentInput,
@@ -120,12 +120,10 @@ def propose(
 
 
 def snapshot(action: AIAction) -> str:
-    return digest(
-        json.dumps(
-            {"kind": action.kind, "payload": action.payload, "contact_id": action.contact_id},
-            sort_keys=True,
-        )
-    )
+    content = {"kind": action.kind, "payload": action.payload, "contact_id": action.contact_id}
+    if action.approval_basis is not None:
+        content["approval_basis"] = action.approval_basis
+    return digest(json.dumps(content, sort_keys=True))
 
 
 def decide(db: Session, actor: Principal, action_id: str, decision: Decision) -> AIAction:
@@ -158,6 +156,8 @@ def decide(db: Session, actor: Principal, action_id: str, decision: Decision) ->
         action.error_code = None
         action.approved_by = None
         action.approved_hash = None
+        action.approval_basis = None
+        action.expires_at = now() + timedelta(days=14)
     else:
         if action.status not in {"pending", "snoozed"}:
             raise DomainError(
@@ -167,6 +167,7 @@ def decide(db: Session, actor: Principal, action_id: str, decision: Decision) ->
             if decision.payload is None:
                 raise DomainError("invalid_action", "Provide an edited action.")
             action.payload = checked_payload(db, action.kind, decision.payload, action.contact_id)
+            action.approval_basis = None
             action.status = "pending"
         elif decision.decision == "reject":
             action.status = "rejected"
@@ -179,6 +180,13 @@ def decide(db: Session, actor: Principal, action_id: str, decision: Decision) ->
                 raise DomainError(
                     "expired_action", "This suggestion expired. Generate a new one.", 409
                 )
+            if action.kind == "crm_update":
+                preference = locked_preference(db, action.payload["contact_id"])
+                defaults = PreferenceInput.model_validate({}).model_dump()
+                action.approval_basis = {
+                    key: getattr(preference, key) if preference else defaults[key]
+                    for key in action.payload["changes"]
+                }
             checked_payload(db, action.kind, action.payload, action.contact_id)
             action.approved_hash, action.approved_by = snapshot(action), actor.user_id
             action.status = "approved"
@@ -187,7 +195,7 @@ def decide(db: Session, actor: Principal, action_id: str, decision: Decision) ->
                 Job(
                     org_id=actor.org_id,
                     kind="execute_action",
-                    payload={"action_id": action.id},
+                    payload={"action_id": action.id, "approval_version": action.version},
                     dedupe_key=f"action:{action.id}:v{action.version}",
                     available_at=action.scheduled_at,
                 )
@@ -233,9 +241,17 @@ def execute(db: Session, action_id: str) -> AIAction:
     try:
         if action.kind == "crm_update":
             payload = CRMUpdate.model_validate(action.payload)
-            preference = db.scalar(
-                select(Preference).where(Preference.contact_id == payload.contact_id)
-            )
+            preference = locked_preference(db, payload.contact_id)
+            defaults = PreferenceInput.model_validate({}).model_dump()
+            if action.approval_basis is None or any(
+                (getattr(preference, key) if preference else defaults[key]) != value
+                for key, value in action.approval_basis.items()
+            ):
+                raise DomainError(
+                    "changed_since_approval",
+                    "The reviewed preferences changed. Review a fresh suggestion before applying it.",
+                    409,
+                )
             if not preference:
                 preference = Preference(org_id=actor.org_id, contact_id=payload.contact_id)
                 db.add(preference)
@@ -243,7 +259,14 @@ def execute(db: Session, action_id: str) -> AIAction:
             changes = payload.changes.model_dump(exclude_unset=True)
             previous = {k: getattr(preference, k) for k in changes}
             merged = {k: getattr(preference, k) for k in type(payload.changes).model_fields}
-            PreferenceInput.model_validate({**merged, **changes})
+            try:
+                PreferenceInput.model_validate({**merged, **changes})
+            except ValidationError as exc:
+                raise DomainError(
+                    "changed_since_approval",
+                    "The change conflicts with the current preferences. Review it again.",
+                    409,
+                ) from exc
             for key, value in changes.items():
                 setattr(preference, key, value)
                 db.add(
@@ -289,6 +312,10 @@ def execute(db: Session, action_id: str) -> AIAction:
         db.add(Usage(org_id=actor.org_id, metric="automated_actions", source_id=action.id))
         audit(db, actor, "action.executed", action.id, {"kind": action.kind})
     except DomainError as exc:
+        if exc.code == "google_reconnect":
+            from realty.google import persist_connection_failure
+
+            persist_connection_failure(db)
         action.status = "uncertain" if exc.code == "external_uncertain" else "failed"
         action.error_code = exc.code
         audit(db, actor, "action.execution_failed", action.id, {"code": exc.code}, action.status)
@@ -306,17 +333,22 @@ def undo(db: Session, actor: Principal, action: AIAction) -> None:
             )
         task.status = "cancelled"
     elif action.kind == "crm_update":
-        preference = db.scalar(
-            select(Preference)
-            .where(Preference.contact_id == action.result["contact_id"])
-            .with_for_update()
-        )
+        preference = locked_preference(db, action.result["contact_id"])
         if not preference or any(
             getattr(preference, k) != v for k, v in action.result["applied"].items()
         ):
             raise DomainError(
                 "changed_since_action", "The profile has changed since this action.", 409
             )
+        current = {key: getattr(preference, key) for key in PreferenceInput.model_fields}
+        try:
+            PreferenceInput.model_validate({**current, **action.result["previous"]})
+        except ValidationError as exc:
+            raise DomainError(
+                "changed_since_action",
+                "Restoring these values would conflict with the current profile.",
+                409,
+            ) from exc
         for key, value in action.result["previous"].items():
             setattr(preference, key, value)
         for fact in db.scalars(select(Fact).where(Fact.source_id == action.id)).all():

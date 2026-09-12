@@ -19,3 +19,9 @@ Store UTC timestamps without timezone in SQL, normalize aware API input to UTC, 
 Contact archival is supported without losing history. Document/organization deletion is explicit. Audit tables are append-only by API design, not cryptographically immutable. A regulated archival/retention product would require additional storage and policy controls.
 
 Current head `2375a43c78e9` adds listing import metadata, calendar timezone/recurrence fields, commitment provenance/version, reviewed document analysis, expiring rate buckets, worker pulses and durable global storage cleanup. Identity migration `35b63b33b85a` adds verified-email state, encrypted MFA enrollment/secrets, one-use tokens/recovery codes and encrypted account mail. Existing users are not silently marked verified. API/worker readiness checks the exact head before work. Snapshot/restore and encryption-key requirements are in [backup-restore.md](backup-restore.md).
+
+## Authority migration: 6bda8c204a71
+
+Adds workspace binding to OAuth state, reviewed-value JSON to CRM approvals and durable checkout-attempt JSON to subscriptions. Upgrade invalidates outstanding ten-minute OAuth requests and returns previously approved CRM updates to pending with a new version; historical completed actions remain unchanged. No prior reviewed baseline is invented. Checkout state is excluded from API/export serializers.
+
+Stop API and worker before upgrading this schema, then restart both on the new revision. An isolated migration regression seeds actual prior-schema OAuth/approval/history rows, checks their safe conversion and runs downgrade/upgrade/drift checks. Downgrade also invalidates affected approvals; it is a test/rollback mechanism, not a production data-recovery strategy.

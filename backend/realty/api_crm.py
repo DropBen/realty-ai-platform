@@ -22,7 +22,7 @@ from realty.models import (
     Task,
     Transaction,
 )
-from realty.repository import paginate, public, require, validate_refs
+from realty.repository import locked_preference, paginate, public, require, validate_refs
 from realty.schemas import (
     AppointmentInput,
     ContactInput,
@@ -228,8 +228,7 @@ def preferences(
     db: Session = Depends(get_db, scope="function"),
 ) -> dict[str, Any]:
     actor.require("write")
-    require(db, Contact, contact_id)
-    row = db.scalar(select(Preference).where(Preference.contact_id == contact_id).with_for_update())
+    row = locked_preference(db, contact_id)
     if not row:
         row = Preference(org_id=actor.org_id, contact_id=contact_id)
         db.add(row)

@@ -45,6 +45,8 @@ export function ActionsPage() {
           {[
             ["pending", "To review"],
             ["approved", "Queued"],
+            ["failed", "Needs review"],
+            ["uncertain", "Verify delivery"],
             ["succeeded", "Completed"],
             ["", "All activity"],
           ].map(([value, label]) => (

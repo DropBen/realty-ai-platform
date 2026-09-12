@@ -95,6 +95,17 @@ def account(client: TestClient) -> dict:
 
 
 @pytest.fixture
+def live_account(account, factory):
+    """A non-demo tenant for simulated provider tests; no live HTTP is authorized."""
+    from realty.models import Organization
+
+    with factory() as db:
+        db.get(Organization, account["organization"]["id"]).is_demo = False
+        db.commit()
+    return account
+
+
+@pytest.fixture
 def contact(client: TestClient, account: dict) -> dict:
     response = client.post(
         "/api/v1/crm/contacts",

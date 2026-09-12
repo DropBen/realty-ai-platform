@@ -37,3 +37,14 @@ Database dependencies use FastAPI's function scope, committing before response h
 **Evidence over inference:** Confirmed preferences and unverified extraction are distinct records. Matching uses only recorded preferences and reports unknown/conflicting criteria. AI summaries stay labelled analysis. An approval records the exact payload and actor; editing requires another review.
 
 **Operational boundaries:** API and worker share an image and database. Azure Blob stores documents in production. Provider APIs are reached only at hardcoded official service origins. Google account ownership is checked before Calendar mutations. Teams share CRM visibility within an organization; this is not a per-agent private inbox product.
+
+## Decisions from the authority audit
+
+- Preserve the modular monolith and existing provider interfaces. Concrete defects were fixable incrementally without adding services or dependencies.
+- Bind OAuth credentials to the initiating workspace and current member/session authority after the network boundary.
+- Bind CRM approval digests to the fields' reviewed values. Execution refuses to overwrite a later edit; undo validates the complete resulting preference range. All preference writers lock the always-present contact, including first-row creation, with a portable unchanged write (SQLite has no row-level SELECT FOR UPDATE).
+- Version queued approval jobs so an old delivery cannot act on a later review. Terminal approval failures become visible failed actions; a human must return and approve them again. Uncertain external delivery remains quarantined.
+- Persist a workspace checkout attempt before the provider call; external state is reconciled, never guessed from a timeout or redirect.
+- Treat the stored demo-tenant flag as an independent external-service boundary, even when runtime settings change.
+
+These decisions prioritize existing workflow integrity over additional screens. Current verification and remaining dependencies live in [project status](project-status.md).

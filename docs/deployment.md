@@ -28,3 +28,7 @@ Start with one worker. PostgreSQL job leases last ten minutes and renew every 30
 See [backup/restore](backup-restore.md) for the executed isolated drill, snapshot tooling and proposed one-hour RPO/four-hour RTO. Validate actual Azure recovery, retention and alert delivery before accepting customers. Source and local/CI results cannot establish cloud recovery guarantees.
 
 Production additionally requires verified-email gating and SMTP STARTTLS delivery. Map SMTP_PASSWORD and METRICS_TOKEN through Key Vault; configure SMTP_HOST, SMTP_PORT and verified MAIL_FROM as runtime settings. Check every value against [environment.md](environment.md).
+
+## Current migration rollout
+
+For revision `6bda8c204a71`, quiesce API and worker together, back up, upgrade once, and restart both on the matching application build. Outstanding OAuth requests expire and historical approved CRM changes require fresh review. Staging now enforces the same startup security guards as production. Confirm APP_ORIGIN and API_ORIGIN are both exact public HTTPS origins. Do not reuse a demo database for real integration acceptance.

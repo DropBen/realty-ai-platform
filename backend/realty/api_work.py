@@ -20,6 +20,7 @@ from realty.models import (
     Integration,
     Job,
     Notification,
+    Organization,
     Subscription,
     Usage,
     Workflow,
@@ -111,12 +112,16 @@ def integrations(
     from realty.config import settings
 
     connections = db.scalars(select(Integration).where(Integration.user_id == actor.user_id)).all()
+    organization = db.get(Organization, actor.org_id)
+    demo = settings.demo_mode or bool(organization and organization.is_demo)
     return {
-        "google_configured": google.configured(),
-        "ai_configured": settings.ai_provider == "openai" and bool(settings.ai_api_key),
-        "billing_configured": billing.configured(),
+        "google_configured": google.configured() and not demo,
+        "ai_configured": settings.ai_provider == "openai"
+        and bool(settings.ai_api_key)
+        and not demo,
+        "billing_configured": billing.configured() and not demo,
         "connections": [public(c) for c in connections],
-        "demo_mode": settings.demo_mode,
+        "demo_mode": demo,
         "call_intelligence": "not_configured",
         "ocr": "not_configured",
     }
@@ -162,7 +167,13 @@ def google_sync(
     db: Session = Depends(get_db, scope="function"),
 ) -> dict[str, Any]:
     actor.require("external")
-    google.GoogleClient(db, actor)  # fail clearly before queuing when disconnected or unconfigured
+    try:
+        google.GoogleClient(db, actor)  # Fail before queuing when disconnected or unconfigured.
+    except DomainError:
+        db.rollback()
+        google.persist_connection_failure(db)
+        db.commit()
+        raise
     if resource not in {"gmail", "calendar"}:
         raise DomainError("invalid_resource", "Select Gmail or Calendar.")
     job = enqueue(
@@ -179,8 +190,14 @@ def google_sync(
 def calendars(
     actor: Principal = Depends(principal), db: Session = Depends(get_db, scope="function")
 ) -> dict[str, Any]:
-    client = google.GoogleClient(db, actor)
-    items, _ = google.pages(client, "calendar/v3/users/me/calendarList", {}, "items")
+    try:
+        client = google.GoogleClient(db, actor)
+        items, _ = google.pages(client, "calendar/v3/users/me/calendarList", {}, "items")
+    except DomainError:
+        db.rollback()
+        google.persist_connection_failure(db)
+        db.commit()
+        raise
     return {
         "items": [
             {"id": x["id"], "summary": x.get("summary"), "access_role": x.get("accessRole")}
@@ -399,7 +416,11 @@ def billing_state(
 ) -> dict[str, Any]:
     actor.require("billing")
     row = db.scalar(select(Subscription))
-    return {"subscription": public(row) if row else None, "configured": billing.configured()}
+    organization = db.get(Organization, actor.org_id)
+    return {
+        "subscription": public(row) if row else None,
+        "configured": billing.configured() and bool(organization and not organization.is_demo),
+    }
 
 
 @router.post("/billing/checkout")

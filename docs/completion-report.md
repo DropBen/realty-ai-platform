@@ -1,5 +1,7 @@
 # RealtyAI completion and independent-audit handoff
 
+**Historical snapshot:** the subsequent code audit found additional defects despite this green baseline. See [canonical project status](project-status.md) for current findings, fixes and verification. The statements below are not current release certification.
+
 Evidence date: September 11, 2026 America/New_York (CI timestamps September 12 UTC). This report describes the existing application after incremental completion/hardening. The FastAPI/SQLAlchemy/React architecture was preserved.
 
 ## Executive summary

@@ -421,8 +421,15 @@ export function ActionCard({
         )}
         {action.error_code && (
           <p className="error-text">
-            {words(action.error_code)}. Review Settings and the provider before
-            retrying.
+            {action.status === "uncertain"
+              ? "Delivery could not be confirmed. Check the provider before creating another action; this action will not be sent again automatically."
+              : action.error_code === "changed_since_approval"
+                ? "The client's preferences changed after approval. Return this suggestion for a new review."
+                : action.error_code === "expired_action"
+                  ? "The approval expired. Return this suggestion for a new review."
+                  : action.error_code === "forbidden"
+                    ? "The approving user's access changed. An authorized reviewer must review this again."
+                    : `${words(action.error_code)}. Review Settings and the provider before retrying.`}
           </p>
         )}
         <div className="action-controls">

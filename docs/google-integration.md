@@ -25,3 +25,11 @@ HTTP contract tests cover OAuth state/replay, encryption, token refresh, full/in
 ## Timezones and synchronization safety
 
 Date-only all-day events use the calendar timezone, preserving 23/25-hour daylight-saving days. Explicit offsets disambiguate repeated times; nonexistent or ambiguous naive timestamps are rejected. Recurrence instance identity and original start metadata are retained, but recurrence-series editing and travel routing remain future scope. Local and approved external appointment writes serialize their conflict check within the workspace; Google can still change independently after synchronization. Imports checkpoint without advancing final cursors until completion; deduplication makes a resumed read safe. Failed connection/sync work is surfaced through job error codes and Settings. Live provider staging acceptance remains required.
+
+## Authority and failure recovery
+
+OAuth state is bound to both the login session and originating workspace. Callback processing checks external permission and, after the provider round trip, rechecks the current session/workspace and membership before storing credentials. Token and identity responses are typed and validated. API calendar reads and worker imports require external permission.
+
+A revoked refresh grant, absent refresh token or provider 401 marks the matching connection `reconnect_required`, records a stable error and stops automatic job retries. Failure persistence compares the failed credential fingerprint so an old request cannot disable a freshly reconnected account. Reconnect through Settings; disconnect remains available. A mailbox identity cannot currently be replaced with a different account for the same user/workspace: reconnect the original mailbox. Retained import identifiers belong to that mailbox.
+
+A successful email response must contain a resource ID; calendar create/update must confirm the expected ID. Malformed or incomplete success responses leave the action uncertain, with no fabricated sent record and no automatic resend. Verify Google directly before creating another action. The full ingest/evidence/review/send/timeline test replaces only provider HTTP; it is not live delivery evidence.

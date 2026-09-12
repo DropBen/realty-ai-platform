@@ -1,14 +1,21 @@
 from typing import Any, TypeVar
 
-from sqlalchemy import func, inspect, select
+from sqlalchemy import func, inspect, select, update
 from sqlalchemy.orm import Session
 
 from realty.db import Base, TenantRecord
 from realty.errors import DomainError
-from realty.models import Contact, Membership, Property, User
+from realty.models import Contact, Membership, Preference, Property, User
 
 T = TypeVar("T", bound=Base)
-PRIVATE_FIELDS = {"password_hash", "token_ciphertext", "token_hash", "csrf_hash", "storage_key"}
+PRIVATE_FIELDS = {
+    "password_hash",
+    "token_ciphertext",
+    "token_hash",
+    "csrf_hash",
+    "storage_key",
+    "checkout_state",
+}
 
 
 def public(row: Any) -> dict[str, Any]:
@@ -47,6 +54,25 @@ def validate_refs(db: Session, values: dict[str, Any]) -> None:
         member = db.scalar(select(Membership).where(Membership.user_id == values["assigned_to"]))
         if not member:
             raise DomainError("invalid_assignee", "Choose a member of this organization.")
+
+
+def locked_preference(db: Session, contact_id: str) -> Preference | None:
+    """Serialize all preference writers, including creation of the first row.
+
+    Lock the always-present parent using an unchanged write. This also works on
+    SQLite, which ignores SELECT FOR UPDATE. Preserve the contact's revision/time.
+    """
+    require(db, Contact, contact_id)
+    db.execute(
+        update(Contact)
+        .where(Contact.id == contact_id)
+        .values(version=Contact.version, updated_at=Contact.updated_at)
+    )
+    return db.scalar(
+        select(Preference)
+        .where(Preference.contact_id == contact_id)
+        .execution_options(populate_existing=True)
+    )
 
 
 def paginate(db: Session, statement: Any, page: int, size: int) -> dict[str, Any]:

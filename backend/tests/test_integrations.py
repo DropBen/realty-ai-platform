@@ -29,7 +29,7 @@ from sqlalchemy import select
 
 
 @pytest.fixture
-def configured_google(monkeypatch, factory, account):
+def configured_google(monkeypatch, factory, account, live_account):
     monkeypatch.setattr(settings, "demo_mode", False)
     monkeypatch.setattr(settings, "encryption_key", Fernet.generate_key().decode())
     monkeypatch.setattr(settings, "google_client_id", "test-client")
@@ -62,7 +62,7 @@ def configured_google(monkeypatch, factory, account):
 
 
 def test_oauth_state_is_bound_single_use_and_tokens_encrypted(
-    client, account, factory, monkeypatch
+    client, account, factory, monkeypatch, live_account
 ):
     monkeypatch.setattr(settings, "demo_mode", False)
     monkeypatch.setattr(settings, "encryption_key", Fernet.generate_key().decode())
@@ -251,7 +251,9 @@ def signature(payload, secret, timestamp=None):
     return f"t={stamp},v1={mac}"
 
 
-def test_stripe_signature_duplicate_and_stale_events(client, account, factory, monkeypatch):
+def test_stripe_signature_duplicate_and_stale_events(
+    client, account, factory, monkeypatch, live_account
+):
     monkeypatch.setattr(settings, "demo_mode", False)
     monkeypatch.setattr(settings, "stripe_secret_key", "test-key")
     monkeypatch.setattr(settings, "stripe_webhook_secret", "test-webhook")

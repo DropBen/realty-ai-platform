@@ -126,9 +126,13 @@ function Settings() {
                 >
                   {query.data?.connections.some((c) => c.status === "connected")
                     ? "Connected"
-                    : query.data?.google_configured
-                      ? "Available"
-                      : "Not configured"}
+                    : query.data?.connections.some(
+                          (c) => c.status === "reconnect_required",
+                        )
+                      ? "Reconnect required"
+                      : query.data?.google_configured
+                        ? "Available"
+                        : "Not configured"}
                 </Badge>
               </div>
               <p>
@@ -166,7 +170,7 @@ function Settings() {
                 </Button>
               </div>
               {query.data?.connections.some(
-                (c) => c.status === "connected",
+                (c) => c.status !== "disconnected",
               ) && (
                 <Button
                   disabled={busy}
@@ -189,7 +193,9 @@ function Settings() {
               )}
               <small>
                 Disconnecting revokes access. Previously synchronized CRM data
-                stays available until explicitly deleted.
+                stays available until explicitly deleted. Reconnect the same
+                Google mailbox; replacing it with another account is not yet
+                supported.
               </small>
             </section>
             <section className="section-card integration-card">
@@ -249,8 +255,7 @@ function Settings() {
             <section className="section-card integration-card">
               <h2>Future connections</h2>
               <p>
-                Call transcription and scanned-document OCR have provider
-                interfaces. No live telephony or OCR provider is configured in
+                Call transcription and scanned-document OCR are not available in
                 this build.
               </p>
               <Badge>Not available</Badge>

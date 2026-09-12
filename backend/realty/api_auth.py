@@ -111,11 +111,12 @@ def login(
 def me(
     actor: Principal = Depends(principal), db: Session = Depends(get_db, scope="function")
 ) -> dict[str, Any]:
+    organization = db.get(Organization, actor.org_id)
     return {
         "user": public(db.get(User, actor.user_id)),
-        "organization": public(db.get(Organization, actor.org_id)),
+        "organization": public(organization),
         "role": actor.role,
-        "demo_mode": settings.demo_mode,
+        "demo_mode": settings.demo_mode or bool(organization and organization.is_demo),
         "require_email_verification": settings.require_email_verification,
     }
 

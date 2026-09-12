@@ -11,6 +11,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import httpx
 from cryptography.fernet import Fernet
+from pydantic import BaseModel, EmailStr, Field, StrictBool
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
@@ -26,12 +27,14 @@ from realty.models import (
     Contact,
     Integration,
     Job,
+    LoginSession,
+    Membership,
     OAuthState,
     SyncCursor,
 )
 from realty.repository import require
 from realty.schemas import AppointmentInput
-from realty.security import Principal, audit, digest
+from realty.security import Principal, audit, digest, require_live_organization
 
 SCOPES = {
     "read": [
@@ -43,6 +46,18 @@ SCOPES = {
     "send": ["https://www.googleapis.com/auth/gmail.send"],
     "calendar_write": ["https://www.googleapis.com/auth/calendar.events"],
 }
+
+
+class TokenResponse(BaseModel):
+    access_token: str = Field(min_length=1, max_length=8192, strict=True)
+    refresh_token: str | None = Field(None, min_length=1, max_length=8192, strict=True)
+    expires_in: int = Field(3600, ge=1, le=86400, strict=True)
+    scope: str = Field("", max_length=8192, strict=True)
+
+
+class GoogleIdentity(BaseModel):
+    email: EmailStr
+    email_verified: StrictBool
 
 
 def configured() -> bool:
@@ -64,6 +79,7 @@ def authorize(db: Session, actor: Principal, capability: str) -> str:
     actor.require("external")
     if not configured():
         raise DomainError("google_unconfigured", "Google integration is not configured.", 503)
+    require_live_organization(db, actor.org_id)
     if capability not in SCOPES:
         raise DomainError("invalid_scope", "Unknown Google capability.")
     state, verifier = secrets.token_urlsafe(32), secrets.token_urlsafe(64)
@@ -72,6 +88,7 @@ def authorize(db: Session, actor: Principal, capability: str) -> str:
         OAuthState(
             state_hash=digest(state),
             session_id=actor.session_id,
+            org_id=actor.org_id,
             verifier=verifier,
             expires_at=now() + timedelta(minutes=10),
         )
@@ -103,8 +120,18 @@ def token_request(values: dict[str, str]) -> dict[str, Any]:
             },
             timeout=20,
         )
+        if response.status_code == 400:
+            failure = response.json()
+            if isinstance(failure, dict) and failure.get("error") == "invalid_grant":
+                raise DomainError(
+                    "google_reconnect",
+                    "Google access expired or was revoked. Reconnect in Settings.",
+                    409,
+                )
         response.raise_for_status()
-        return response.json()  # type: ignore[no-any-return]
+        return TokenResponse.model_validate(response.json()).model_dump(
+            exclude_unset=True, exclude_none=True
+        )
     except (httpx.HTTPError, ValueError) as exc:
         raise DomainError(
             "google_auth_failed", "Google authorization failed. Reconnect your account.", 502
@@ -112,13 +139,16 @@ def token_request(values: dict[str, str]) -> dict[str, Any]:
 
 
 def callback(db: Session, actor: Principal, code: str, state: str) -> None:
+    actor.require("external")
     if not configured():
         raise DomainError("google_unconfigured", "Google integration is not configured.", 503)
+    require_live_organization(db, actor.org_id)
     stored = db.scalar(
         select(OAuthState)
         .where(
             OAuthState.state_hash == digest(state),
             OAuthState.session_id == actor.session_id,
+            OAuthState.org_id == actor.org_id,
             OAuthState.expires_at > now(),
         )
         .with_for_update()
@@ -147,20 +177,46 @@ def callback(db: Session, actor: Principal, code: str, state: str) -> None:
             timeout=20,
         )
         profile_response.raise_for_status()
-        profile = profile_response.json()
-        if not profile.get("email_verified"):
+        profile = GoogleIdentity.model_validate(profile_response.json())
+        if not profile.email_verified:
             raise DomainError("google_identity", "Google did not verify this email address.")
     except (httpx.HTTPError, KeyError, ValueError) as exc:
         raise DomainError("google_identity", "Could not verify the Google account.", 502) from exc
+    # The provider round trip outlives the state transaction. Recheck current authority
+    # before saving credentials; session switching, logout and role revocation win.
+    session = db.scalar(
+        select(LoginSession)
+        .where(
+            LoginSession.id == actor.session_id,
+            LoginSession.org_id == actor.org_id,
+            LoginSession.user_id == actor.user_id,
+            LoginSession.expires_at > now(),
+        )
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
+    if not session:
+        raise DomainError(
+            "oauth_state", "Your session changed. Start a new Google connection.", 400
+        )
+    member = db.scalar(
+        select(Membership)
+        .where(Membership.org_id == actor.org_id, Membership.user_id == actor.user_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
+    if not member:
+        raise DomainError("forbidden", "Organization access has been removed.", 403)
+    Principal(actor.user_id, actor.org_id, member.role).require("external")
     integration = db.scalar(
         select(Integration).where(
             Integration.user_id == actor.user_id, Integration.provider == "google"
         )
     )
-    if integration and integration.email != profile["email"]:
+    if integration and integration.email != str(profile.email).lower():
         raise DomainError(
             "account_mismatch",
-            "Disconnect the existing Google account before connecting another.",
+            "This workspace connection retains its original mailbox identity. Reconnect the same Google account.",
             409,
         )
     if not integration:
@@ -171,7 +227,7 @@ def callback(db: Session, actor: Principal, code: str, state: str) -> None:
         tokens["refresh_token"] = old.get("refresh_token")
     tokens["expires_at"] = time.time() + tokens.get("expires_in", 3600)
     integration.token_ciphertext = cipher().encrypt(json.dumps(tokens).encode()).decode()
-    integration.email = profile["email"]
+    integration.email = str(profile.email).lower()
     integration.scopes = tokens.get("scope", "")
     integration.status, integration.last_error = "connected", None
     audit(db, actor, "google.connected", integration.id)
@@ -179,8 +235,10 @@ def callback(db: Session, actor: Principal, code: str, state: str) -> None:
 
 class GoogleClient:
     def __init__(self, db: Session, actor: Principal):
+        actor.require("external")
         if not configured():
             raise DomainError("google_unconfigured", "Google integration is not configured.", 503)
+        require_live_organization(db, actor.org_id)
         self.db = db
         integration = db.scalar(
             select(Integration)
@@ -197,12 +255,18 @@ class GoogleClient:
         tokens = json.loads(cipher().decrypt(integration.token_ciphertext.encode()))
         if tokens.get("expires_at", 0) <= time.time() + 60:
             if not tokens.get("refresh_token"):
+                remember_connection_failure(db, integration)
                 raise DomainError(
                     "google_reconnect", "Your Google account needs to be reconnected.", 409
                 )
-            refreshed = token_request(
-                {"refresh_token": tokens["refresh_token"], "grant_type": "refresh_token"}
-            )
+            try:
+                refreshed = token_request(
+                    {"refresh_token": tokens["refresh_token"], "grant_type": "refresh_token"}
+                )
+            except DomainError as exc:
+                if exc.code == "google_reconnect":
+                    remember_connection_failure(db, integration)
+                raise
             tokens.update(refreshed)
             tokens["expires_at"] = time.time() + refreshed.get("expires_in", 3600)
             integration.token_ciphertext = cipher().encrypt(json.dumps(tokens).encode()).decode()
@@ -257,6 +321,7 @@ class GoogleClient:
                     409,
                 )
             if response.status_code == 401:
+                remember_connection_failure(self.db, self.integration)
                 raise DomainError("google_reconnect", "Reconnect Google to continue.", 409)
             if response.status_code == 403:
                 raise DomainError(
@@ -264,10 +329,53 @@ class GoogleClient:
                     "Google access is missing. Connect the required permission in Settings.",
                     403,
                 )
-            if response.is_error:
+            if not response.is_success:
                 raise DomainError("google_rejected", "Google rejected the request.", 502)
-            return response.json() if response.content else {}
+            try:
+                result = response.json() if response.content else {}
+                if not isinstance(result, dict):
+                    raise ValueError("Expected a resource object")
+                return result
+            except ValueError as exc:
+                raise DomainError(
+                    "google_invalid_response" if method == "GET" else "external_uncertain",
+                    "Google returned an invalid response. Verify any external operation before retrying.",
+                    502,
+                ) from exc
         raise DomainError("google_unavailable", "Google is temporarily unavailable.", 503)
+
+
+def remember_connection_failure(db: Session, integration: Integration) -> None:
+    # Only a fingerprint crosses the rollback boundary. Never retain/log token plaintext.
+    db.info["google_connection_failure"] = (
+        integration.id,
+        digest(integration.token_ciphertext or ""),
+    )
+
+
+def persist_connection_failure(db: Session) -> None:
+    failure = db.info.pop("google_connection_failure", None)
+    if not failure:
+        return
+    integration = db.scalar(
+        select(Integration)
+        .where(Integration.id == failure[0])
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
+    if (
+        integration
+        and integration.status == "connected"
+        and digest(integration.token_ciphertext or "") == failure[1]
+    ):
+        integration.status, integration.last_error = "reconnect_required", "google_reconnect"
+        audit(
+            db,
+            Principal(integration.user_id, integration.org_id, "viewer"),
+            "google.reconnect_required",
+            integration.id,
+            result="failed",
+        )
 
 
 def cursor_for(db: Session, actor: Principal, resource: str) -> SyncCursor:
@@ -544,6 +652,7 @@ def sync_calendar(db: Session, actor: Principal, calendar_id: str = "primary") -
                 old.status = "cancelled"
     cursor.cursor = final.get("nextSyncToken")
     client.integration.last_sync_at = now()
+    client.integration.last_error = None
     audit(db, actor, "calendar.synced", details={"events": len(events)})
     return len(events)
 
@@ -561,6 +670,7 @@ def execute_external(db: Session, actor: Principal, action: AIAction) -> dict[st
             "gmail/v1/users/me/messages/send",
             body={"raw": base64.urlsafe_b64encode(message.as_bytes()).decode()},
         )
+        confirmed_id(result)
         db.add(
             Communication(
                 org_id=actor.org_id,
@@ -610,7 +720,8 @@ def execute_external(db: Session, actor: Principal, action: AIAction) -> dict[st
     }
     if action.kind == "calendar_create":
         body["id"] = event_id
-        client.request("POST", path, body=body)
+        result = client.request("POST", path, body=body)
+        confirmed_id(result, event_id)
         appointment = Appointment(
             org_id=actor.org_id,
             owner_id=actor.user_id,
@@ -620,12 +731,28 @@ def execute_external(db: Session, actor: Principal, action: AIAction) -> dict[st
         )
         db.add(appointment)
     else:
-        client.request("PATCH", path + "/" + quote(event_id, safe=""), body=body)
+        result = client.request("PATCH", path + "/" + quote(event_id, safe=""), body=body)
+        confirmed_id(result, event_id)
         assert appointment is not None
         for key, value in values.model_dump().items():
             setattr(appointment, key, value)
     audit(db, actor, action.kind, action.id)
     return {"external_id": event_id}
+
+
+def confirmed_id(result: dict[str, Any], expected: str | None = None) -> str:
+    resource_id = result.get("id")
+    if (
+        not isinstance(resource_id, str)
+        or not resource_id
+        or (expected and resource_id != expected)
+    ):
+        raise DomainError(
+            "external_uncertain",
+            "Google did not confirm the expected resource. Verify it before retrying.",
+            502,
+        )
+    return resource_id
 
 
 def disconnect(db: Session, actor: Principal) -> None:

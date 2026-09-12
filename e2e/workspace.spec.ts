@@ -110,6 +110,61 @@ test("demo dashboard, navigation and mobile fit", async ({
   expect(errors).toEqual([]);
 });
 
+test("failed demo email stays unsent and can return for review", async ({
+  page,
+}) => {
+  await signIn(page);
+  const csrf = (await page.context().cookies()).find(
+    (c) => c.name === "realty_csrf",
+  )!.value;
+  const headers = { "x-csrf-token": csrf };
+  const contacts = await page.request.get("/api/v1/crm/contacts?page_size=25");
+  const contact = (await contacts.json()).items.find(
+    (c: { email: string | null }) => c.email,
+  );
+  const created = await page.request.post("/api/v1/actions", {
+    headers,
+    data: {
+      kind: "send_email",
+      title: "Review failed demo delivery",
+      reason: "Browser regression for safe demo sending",
+      contact_id: contact.id,
+      payload: { to: contact.email, subject: "Never sent", body: "Demo only" },
+    },
+  });
+  expect(created.status()).toBe(201);
+  const action = await created.json();
+  const approved = await page.request.post(
+    `/api/v1/actions/${action.id}/decision`,
+    { headers, data: { decision: "approve", version: action.version } },
+  );
+  expect(approved.ok()).toBeTruthy();
+  await expect
+    .poll(
+      async () => {
+        const result = await page.request.get("/api/v1/actions?status=failed");
+        return (await result.json()).items.some(
+          (a: { id: string }) => a.id === action.id,
+        );
+      },
+      { intervals: [1000], timeout: 15000 },
+    )
+    .toBeTruthy();
+  await page.goto("/actions");
+  await page.getByRole("button", { name: "Needs review", exact: true }).click();
+  const card = page
+    .locator(".action-card")
+    .filter({ hasText: "Review failed demo delivery" });
+  await expect(card).toBeVisible();
+  await expect(card.getByText(/Google unconfigured/i)).toBeVisible();
+  await card.getByRole("button", { name: "View details" }).click();
+  await page.getByRole("button", { name: "Return for a new review" }).click();
+  await page.getByRole("button", { name: "To review", exact: true }).click();
+  await expect(
+    page.getByText("Review failed demo delivery", { exact: true }),
+  ).toBeVisible();
+});
+
 test("create contact, record a preference, and see timeline", async ({
   page,
 }) => {
@@ -255,15 +310,13 @@ test("review a CSV listing import and find the saved property", async ({
   await page
     .getByRole("button", { name: "Import listings", exact: true })
     .click();
-  await page
-    .getByLabel("Listing file")
-    .setInputFiles({
-      name: "listings.csv",
-      mimeType: "text/csv",
-      buffer: Buffer.from(
-        `reference,updated_at,address,location,price,bedrooms,bathrooms,features\n${reference},2026-01-01T00:00:00Z,${address},Example City,575000,3,2,garage;garden\n`,
-      ),
-    });
+  await page.getByLabel("Listing file").setInputFiles({
+    name: "listings.csv",
+    mimeType: "text/csv",
+    buffer: Buffer.from(
+      `reference,updated_at,address,location,price,bedrooms,bathrooms,features\n${reference},2026-01-01T00:00:00Z,${address},Example City,575000,3,2,garage;garden\n`,
+    ),
+  });
   await page.getByRole("button", { name: "Preview listings" }).click();
   await expect(
     page.getByRole("dialog").getByText(address, { exact: true }),

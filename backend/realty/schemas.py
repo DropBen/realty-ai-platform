@@ -7,8 +7,13 @@ from pydantic import BaseModel, BeforeValidator, ConfigDict, EmailStr, Field, mo
 def utc_naive(value: Any) -> datetime | None:
     if value is None or value == "":
         return None
+    if not isinstance(value, (str, datetime)):
+        raise ValueError("Use an ISO 8601 date/time string")
     dt = datetime.fromisoformat(value.replace("Z", "+00:00")) if isinstance(value, str) else value
-    return dt.astimezone(UTC).replace(tzinfo=None) if dt.tzinfo else dt
+    try:
+        return dt.astimezone(UTC).replace(tzinfo=None) if dt.tzinfo else dt
+    except (OverflowError, OSError) as exc:
+        raise ValueError("Date/time is outside the supported range") from exc
 
 
 Date = Annotated[datetime, BeforeValidator(utc_naive)]

@@ -34,7 +34,7 @@ from realty.models import (
     RecoveryCode,
     User,
 )
-from realty.security import digest, verify_password
+from realty.security import digest, require_live_organization, verify_password
 
 
 def cipher() -> Fernet:
@@ -206,6 +206,8 @@ def queue_mail(db: Session, user: User, purpose: str, body: str) -> None:
     )
     if not org_id:
         raise DomainError("no_organization", "No active organization is available.", 403)
+    if settings.mail_backend == "smtp":
+        require_live_organization(db, org_id)
     mail = AccountMail(
         user_id=user.id, purpose=purpose, body_ciphertext=cipher().encrypt(body.encode()).decode()
     )
@@ -241,6 +243,8 @@ def security_notice(db: Session, user: User, event: str) -> None:
 
 def deliver_mail(db: Session, payload: dict[str, Any]) -> None:
     require_mail()
+    if settings.mail_backend == "smtp":
+        require_live_organization(db, str(db.info.get("org_id", "")))
     mail = db.scalar(
         select(AccountMail).where(
             AccountMail.id == payload.get("mail_id"), AccountMail.user_id == payload.get("user_id")

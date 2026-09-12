@@ -170,6 +170,9 @@ def dispatch(db: Session, job: Job) -> None:
         remind(db, job.payload)
         return
     if job.kind == "execute_action":
+        action = require(db, AIAction, job.payload["action_id"])
+        if job.payload.get("approval_version", action.version) != action.version:
+            return  # An old delivery cannot execute or invalidate a later human decision.
         execute(db, job.payload["action_id"])
         return
     user_id = job.payload.get("user_id")
@@ -271,15 +274,42 @@ def tick() -> bool:
                 return True
             db.refresh(job)
             code = exc.code if isinstance(exc, DomainError) else "internal_error"
+            if code == "google_reconnect":
+                from realty.google import persist_connection_failure
+
+                persist_connection_failure(db)
+            terminal_action = False
             if job.kind == "execute_action":
                 action = require(db, AIAction, job.payload["action_id"])
                 if action.status == "executing":
                     action.status, action.error_code = "uncertain", "execution_interrupted"
                     code = "external_uncertain"
+                elif action.status == "approved" and (
+                    (isinstance(exc, DomainError) and code not in {"not_due", "already_executing"})
+                    or job.attempts >= 5
+                ):
+                    action.status, action.error_code = "failed", code
+                    terminal_action = True
+                    audit(
+                        db,
+                        Principal(action.approved_by or "worker", job.org_id, "viewer"),
+                        "action.execution_failed",
+                        action.id,
+                        {"code": code},
+                        "failed",
+                    )
+                    db.add(
+                        Notification(
+                            org_id=job.org_id,
+                            title="An approved action needs another review",
+                            body="The action could not run safely. Review its failure before retrying.",
+                        )
+                    )
             job.error_code = code
             job.status = (
                 "dead"
-                if job.attempts >= 5
+                if terminal_action
+                or job.attempts >= 5
                 or code
                 in {
                     "external_uncertain",
@@ -287,6 +317,10 @@ def tick() -> bool:
                     "ai_invalid_response",
                     "unsupported_evidence",
                     "google_unconfigured",
+                    "google_reconnect",
+                    "google_disconnected",
+                    "forbidden",
+                    "demo_isolated",
                     "job_authorization",
                     "not_approved",
                 }

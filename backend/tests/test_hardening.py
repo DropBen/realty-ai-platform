@@ -158,7 +158,9 @@ def test_ai_rejects_invalid_metering(monkeypatch, tokens):
             OpenAIProvider().structured("answer", {}, Answer)
 
 
-def test_stripe_canonical_customer_mismatch_rolls_back_receipt(account, factory, monkeypatch):
+def test_stripe_canonical_customer_mismatch_rolls_back_receipt(
+    account, factory, monkeypatch, live_account
+):
     monkeypatch.setattr(settings, "demo_mode", False)
     monkeypatch.setattr(settings, "stripe_webhook_secret", "test-webhook")
     monkeypatch.setattr(

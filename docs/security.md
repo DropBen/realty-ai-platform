@@ -31,3 +31,7 @@ Google disconnect revokes tokens, clears connection secrets and cursors, and ret
 Bulk exports are bounded at 20,000 rows per table. Large-tenant export, approved business retention and crash-orphan inventory require operational procedures. Normal rollback cleans new uploads; committed deletion uses a persistent retry queue. Power loss between blob upload and SQL commit can still require reconciliation; object storage and SQL do not share a transaction.
 
 Account-specific controls and MFA policy are in [account security](account-security.md). Organization deletion reauthenticates with password and a current factor when MFA is enrolled. Actual streamed request bodies are bounded before mutation, including chunked input; rate-limit responses include Retry-After. Offline source validation also verifies extracted amounts against quoted numbers, rather than accepting any nearby quote.
+
+## Additional audit controls
+
+OAuth is session/workspace-bound with permission revalidation after exchange; imported demo tenants cannot call external services after a configuration switch. Typed Google token/identity responses and strict environment/provider configuration fail closed. Configuration errors hide input values. CRM approvals preserve reviewed values and serialize preference writes; stale jobs cannot execute a later approval version. Malformed external success responses never count as confirmed delivery. Adversarial regression coverage is recorded in [project status](project-status.md).

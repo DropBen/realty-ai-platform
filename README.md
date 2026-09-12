@@ -1,5 +1,7 @@
 # RealtyAI
 
+Current status, engineering priorities, verified limits and exact human prerequisites: **[Project status](docs/project-status.md)**. Earlier completion reports describe previous snapshots.
+
 **The AI handles the busywork. The realtor handles the relationship.**
 
 RealtyAI is a modular real-estate CRM with a working API, relational database, background worker, React workspace and approval-driven intelligence. It runs locally without production credentials in an explicitly labelled demo workspace.

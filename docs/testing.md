@@ -57,3 +57,9 @@ python scripts/recovery_drill.py --postgres --work-dir work --output work/recove
 PostgreSQL requires separately created empty `realty_load_*` and `realty_drill_*` databases configured through `LOAD_DATABASE_URL`, `DRILL_DATABASE_URL` and `RESTORE_DATABASE_URL`. CI provisions them. Scripts start/stop their own API/worker processes and generate unique scratch directories. Load baseline uses three users, 3,000 contacts, 300 properties and 198 measured mixed requests, including approval and worker completion. It verifies results and tenant denial; it is too short/small to claim an SLO, saturation point or capacity. Recovery verifies real dump/restore plus documents and safe quarantine. See [backup and restore](backup-restore.md).
 
 [verification.md](verification.md) records actual results and commit/workflow links. CI also builds Docker and compiles Bicep. Neither operation proves an Azure deployment or real provider integration.
+
+## Authority-audit regressions
+
+`test_authority_regressions.py` covers invalid inputs/configuration, OAuth workspace and revocation boundaries, newer manual edits, invalid undo, terminal approval handling and a PostgreSQL concurrent writer. `test_authority_migration.py` tests real prior-schema conversion. `test_provider_safety.py` covers permanent demo isolation, reconnect failures, stale credential failure races and secret-safe config errors. `test_billing_reconciliation.py` covers pending checkout retries, canonical cancellation/replacement and old events. `test_realtor_workflow.py` uses real API/worker/database code through the full email/evidence/approval/delivery loop, with Google and AI HTTP fixtures. The added browser journey proves failed demo email remains unsent and can return for review.
+
+The browser suite now contains 20 configured cases (10 desktop, 10 mobile). Exact current results are maintained in [project status](project-status.md); fixtures do not establish real provider acceptance.
