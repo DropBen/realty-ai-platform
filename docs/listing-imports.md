@@ -1,0 +1,9 @@
+# Reviewed listing ingestion
+
+Properties → Import listings accepts a UTF-8 CSV or normalized JSON file (maximum 1 MB/100 listings). The server validates a preview; an agent/admin/owner explicitly imports the reviewed batch. Viewers and assistants cannot approve it. Importing a file does not connect an MLS feed.
+
+Download the CSV template from `/api/v1/listings/template`. Columns include `reference,updated_at,address,location,price,bedrooms,bathrooms,features`; `features` uses semicolons and normal CSV quoting handles commas. Use an aware ISO timestamp such as `2026-01-01T12:00:00Z`. The preview endpoint returns the complete normalized batch used by the import endpoint. The server validates it again at import; tenant/reference permissions never depend on the browser preview.
+
+`ListingProvider` defines a typed adapter boundary. Provider/reference mappings are unique per organization. Reimporting an identical revision is idempotent. Older revisions, changed payloads at the same revision and overwrites of manual CRM edits return conflicts. Workspace locking serializes import decisions. Manual edits are deliberately protected; reconcile source data and CRM changes before another import. There is no silent force overwrite or recurring unlicensed scraper.
+
+Licensed MLS onboarding requires the feed contract, rights/retention/rate limits, provider documentation, test credentials and field mappings. Supply credentials via Key Vault and a provider-specific configuration after selecting the service; do not place a feed token in an uploaded CSV. Then implement that adapter against the actual contract, run recorded/sandbox mapping tests, verify deletions/status transitions, and enable polling with operator monitoring. Live MLS is an external blocker; reviewed CSV/JSON ingestion is implemented and independently testable.

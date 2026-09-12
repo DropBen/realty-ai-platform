@@ -1,17 +1,19 @@
 # RealtyAI
 
+Current status, engineering priorities, verified limits and exact human prerequisites: **[Project status](docs/project-status.md)**. Earlier completion reports describe previous snapshots.
+
 **The AI handles the busywork. The realtor handles the relationship.**
 
 RealtyAI is a modular real-estate CRM with a working API, relational database, background worker, React workspace and approval-driven intelligence. It runs locally without production credentials in an explicitly labelled demo workspace.
 
-This is a tested foundation, **not a certified production release**. Live Google/Stripe/OpenAI validation, browser acceptance, PostgreSQL deployment validation and cloud rollout have separate acceptance gates. See [acceptance and limitations](docs/acceptance.md).
+This is an implemented and tested application, **not a certified production release**. Identity recovery/MFA, PostgreSQL tests, automated accessibility, offline AI evaluations, and isolated load/recovery drills are included. Live provider acceptance and Azure deployment remain separate launch gates. See the [completion report](docs/completion-report.md) and [verification evidence](docs/verification.md).
 
 ## Start locally
 
 Prerequisites: Python 3.12+, Node.js 24 LTS, Git. Docker is optional.
 
 ```sh
-git clone https://github.com/DropBen/realty-ai-platform.git
+git clone --branch feat/realtyai-foundation https://github.com/DropBen/realty-ai-platform.git
 cd realty-ai-platform
 python -m venv .venv
 ```
@@ -47,16 +49,18 @@ With Docker running, `docker compose up --build` starts PostgreSQL, migrations, 
 
 ## What works
 
-- Password authentication, server sessions, CSRF, five roles, organization memberships and organization switching.
+- Password authentication, email verification/recovery, optional TOTP and recovery codes, session management, CSRF, five roles and organization switching.
 - Contacts/leads/buyers/sellers, confirmed preferences, source facts, a relationship timeline, notes/calls/showing feedback, properties, deals and transaction milestones.
 - Tasks, local appointments, calendar conflict detection, available-time suggestions and meeting preparation.
 - Data-derived briefing, bounded natural-language search, explainable buyer/property matching, email extraction, proposed commitments and follow-up drafts.
-- AI action review, edit, reject, snooze, scheduled approval, background execution, safe retry rules, internal undo and audit events.
+- AI action review, edit, reject, snooze, scheduled approval/withdrawal, background execution, safe retry rules, internal undo and audit events. Email drafts use labelled form fields.
 - Google OAuth with PKCE, encrypted refresh tokens, incremental Gmail/Calendar synchronization, email sends and Calendar mutations behind approval.
 - OpenAI structured-output provider behind an explicit interface, tenant-bound context and source validation. No provider is called in demo mode.
-- Document upload/download/search with local or Azure Blob storage, text/PDF extraction and configured-provider summaries.
+- Reviewed CSV/JSON listing import, source-preserving commitment review/reminders, and document classification/entity proposals.
+- Authorized document storage/downloads, isolated PDF text parsing, evidence validation and explicit classification review.
 - Stripe checkout/portal/invoices, verified idempotent subscription webhooks, trial state and metered AI usage.
-- Durable jobs, retries, dead letters, event-driven workflow rules, notifications, analytics, exports and organization deletion.
+- Renewable/fenced worker leases, retries/dead letters, event-driven workflows, notifications, metrics, analytics, exports and durable document deletion.
+- Backup/restore tooling, isolated PostgreSQL/SQLite recovery and load drills, deterministic AI evaluations and operator runbooks.
 
 The backend never treats the frontend or model output as an authorization boundary. The demo's conservative parser and editable follow-up templates are labelled development behavior, not a simulated live integration.
 
@@ -68,7 +72,8 @@ backend/migrations/  Versioned relational schema
 backend/tests/       Service, API, security and provider-contract tests
 frontend/            React/TypeScript application and shared design components
 e2e/                 Playwright desktop/mobile acceptance journeys
-scripts/             Reproducible frontend build
+scripts/             Frontend build, AI evaluation, load baseline and recovery tooling
+evals/               Versioned adversarial and evidence fixtures
 infra/               Azure Container Apps Bicep and deployment prerequisites
 docs/                Architecture, operations, setup and acceptance evidence
 .github/workflows/   Verification pipeline; no automatic production deployment
@@ -77,12 +82,14 @@ docs/                Architecture, operations, setup and acceptance evidence
 ## Verify
 
 ```sh
-python -m ruff check backend
-python -m ruff format --check backend
+python -m ruff check backend scripts
+python -m ruff format --check backend scripts
 python -m mypy backend/realty
-python -m pytest
+python -m bandit -r backend/realty -ll -q
+python -m pytest -p no:cacheprovider
+python scripts/evaluate.py --output work/ai-evaluations.json
 python -m alembic check
-python -m pip_audit -r requirements.lock --disable-pip
+python -m pip_audit -r requirements.lock --disable-pip --no-deps
 npm run lint
 npm run typecheck
 npm run format:check
@@ -95,3 +102,5 @@ Start the API and worker on an isolated demo database, then `npx playwright inst
 ## Documentation
 
 [Architecture](docs/architecture.md) · [Setup](docs/setup.md) · [Environment](docs/environment.md) · [Security](docs/security.md) · [AI design](docs/ai-architecture.md) · [Google](docs/google-integration.md) · [Billing](docs/billing.md) · [Database](docs/database.md) · [Deployment](docs/deployment.md) · [Testing](docs/testing.md) · [Troubleshooting](docs/troubleshooting.md) · [Acceptance](docs/acceptance.md)
+
+[Account security](docs/account-security.md) · [Operations](docs/operations.md) · [Backup and restore](docs/backup-restore.md) · [Listing imports](docs/listing-imports.md) · [API inventory](docs/api-routes.md) · [Completion report](docs/completion-report.md)

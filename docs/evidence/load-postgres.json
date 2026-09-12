@@ -1,0 +1,75 @@
+{
+  "scope": "Short isolated functional load baseline with fictional data; not a capacity or production SLO certification.",
+  "database": "postgresql",
+  "virtual_users": 3,
+  "contacts": 3000,
+  "properties": 300,
+  "requests": 198,
+  "elapsed_seconds": 2.144,
+  "requests_per_second": 92.34,
+  "latency_ms": {
+    "p50": 26.69,
+    "p95": 51.99,
+    "max": 145.82
+  },
+  "errors": [],
+  "worker_completed_approved_tasks": true,
+  "cross_tenant_request_rejected": true,
+  "routes": {
+    "contact_search": {
+      "requests": 18,
+      "p50_ms": 24.98,
+      "p95_ms": 93.84
+    },
+    "briefing": {
+      "requests": 18,
+      "p50_ms": 40.78,
+      "p95_ms": 69.25
+    },
+    "analytics": {
+      "requests": 18,
+      "p50_ms": 23.62,
+      "p95_ms": 31.67
+    },
+    "properties": {
+      "requests": 18,
+      "p50_ms": 23.24,
+      "p95_ms": 30.26
+    },
+    "living_profile": {
+      "requests": 18,
+      "p50_ms": 40.38,
+      "p95_ms": 145.35
+    },
+    "structured_command": {
+      "requests": 18,
+      "p50_ms": 22.79,
+      "p95_ms": 28.42
+    },
+    "create_task": {
+      "requests": 18,
+      "p50_ms": 25.74,
+      "p95_ms": 31.09
+    },
+    "update_preferences": {
+      "requests": 18,
+      "p50_ms": 30.98,
+      "p95_ms": 36.64
+    },
+    "create_note": {
+      "requests": 18,
+      "p50_ms": 23.72,
+      "p95_ms": 26.45
+    },
+    "propose_task": {
+      "requests": 18,
+      "p50_ms": 24.27,
+      "p95_ms": 29.31
+    },
+    "approve_task": {
+      "requests": 18,
+      "p50_ms": 32.32,
+      "p95_ms": 41.54
+    }
+  }
+}
