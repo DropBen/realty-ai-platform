@@ -8,6 +8,38 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
 
+def test_session_transaction_commits_before_response_headers(factory):
+    from fastapi.testclient import TestClient
+    from realty.db import get_db
+    from realty.main import app
+
+    committed = False
+    observed = []
+
+    def transactional():
+        nonlocal committed
+        with factory() as db:
+            yield db
+            db.commit()
+            committed = True
+
+    async def probe(scope, receive, send):
+        async def inspect_send(message):
+            if message["type"] == "http.response.start":
+                observed.append(committed)
+            await send(message)
+
+        await app(scope, receive, inspect_send)
+
+    app.dependency_overrides[get_db] = transactional
+    try:
+        with TestClient(probe) as client:
+            register(client, "response-order")
+        assert observed == [True]
+    finally:
+        app.dependency_overrides.clear()
+
+
 def test_password_hashes_are_salted():
     first, second = hash_password("password123456"), hash_password("password123456")
     assert first != second

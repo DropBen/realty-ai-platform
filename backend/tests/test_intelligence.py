@@ -1,8 +1,18 @@
+from datetime import datetime
+
 import pytest
 from conftest import register
 from realty.errors import DomainError
 from realty.intelligence import Extraction, analyze_email, extract_demo, match_property
-from realty.models import AIAction, Commitment, Communication, Fact, Preference, Property
+from realty.models import (
+    AIAction,
+    Appointment,
+    Commitment,
+    Communication,
+    Fact,
+    Preference,
+    Property,
+)
 from realty.security import Principal
 from sqlalchemy import select
 
@@ -16,6 +26,24 @@ def test_unknown_preferences_are_not_a_fake_match():
     result = match_property(pref, prop)
     assert result["score"] == 50
     assert any(f["label"] == "Budget" and f["state"] == "conflict" for f in result["factors"])
+
+
+def test_briefing_uses_the_organizations_day(client, account, factory, monkeypatch):
+    monkeypatch.setattr("realty.intelligence.now", lambda: datetime(2026, 9, 12, 1))
+    with factory() as db:
+        for day in [11, 12]:
+            db.add(
+                Appointment(
+                    org_id=account["organization"]["id"],
+                    title=f"September {day}",
+                    start_at=datetime(2026, 9, day, 19),
+                    end_at=datetime(2026, 9, day, 20),
+                )
+            )
+        db.commit()
+    response = client.get("/api/v1/briefing")
+    assert response.status_code == 200
+    assert [a["title"] for a in response.json()["appointments"]] == ["September 11"]
 
 
 def test_demo_parser_does_not_execute_embedded_instructions():

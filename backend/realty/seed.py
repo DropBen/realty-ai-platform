@@ -1,4 +1,5 @@
-from datetime import timedelta
+from datetime import UTC, timedelta
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import select
 
@@ -207,7 +208,14 @@ def seed() -> None:
                     due_at=now() + timedelta(days=3 + index),
                 )
             )
-        today = now().replace(hour=14, minute=0, second=0, microsecond=0)
+        today = (
+            now()
+            .replace(tzinfo=UTC)
+            .astimezone(ZoneInfo(org.timezone))
+            .replace(hour=10, minute=0, second=0, microsecond=0)
+            .astimezone(UTC)
+            .replace(tzinfo=None)
+        )
         for index, title in enumerate(
             ["Maplewood Drive showing", "Olivia · buyer consultation", "Michael · listing review"]
         ):

@@ -68,10 +68,10 @@ export const date = (
         value.endsWith("Z") || value.includes("+") ? value : value + "Z",
       ).toLocaleDateString("en-US", options)
     : "Not set";
-export const time = (value: string) =>
+export const time = (value: string, timeZone?: string) =>
   new Date(value.endsWith("Z") ? value : value + "Z").toLocaleTimeString(
     "en-US",
-    { hour: "numeric", minute: "2-digit" },
+    { hour: "numeric", minute: "2-digit", timeZone },
   );
 export const words = (value: string) =>
   value.replaceAll("_", " ").replace(/\b\w/g, (c) => c.toUpperCase());

@@ -77,7 +77,7 @@ def list_records(
     sort: str = "created_at",
     direction: str = "desc",
     actor: Principal = Depends(principal),
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db, scope="function"),
 ) -> dict[str, Any]:
     model, _, label = resource(name)
     statement = select(model)
@@ -112,7 +112,7 @@ def create_record(
     name: str,
     body: dict[str, Any],
     actor: Principal = Depends(principal),
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db, scope="function"),
 ) -> dict[str, Any]:
     actor.require("write")
     model, _, label = resource(name)
@@ -142,7 +142,10 @@ def create_record(
 
 @router.get("/crm/{name}/{record_id}")
 def get_record(
-    name: str, record_id: str, actor: Principal = Depends(principal), db: Session = Depends(get_db)
+    name: str,
+    record_id: str,
+    actor: Principal = Depends(principal),
+    db: Session = Depends(get_db, scope="function"),
 ) -> dict[str, Any]:
     model, _, _ = resource(name)
     return public(require(db, model, record_id))
@@ -154,7 +157,7 @@ def edit_record(
     record_id: str,
     body: dict[str, Any],
     actor: Principal = Depends(principal),
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db, scope="function"),
 ) -> dict[str, Any]:
     actor.require("write")
     model, _, label = resource(name)
@@ -201,7 +204,9 @@ def check_conflicts(db: Session, values: dict[str, Any], exclude: str = "") -> N
 
 @router.get("/contacts/{contact_id}/profile")
 def profile(
-    contact_id: str, actor: Principal = Depends(principal), db: Session = Depends(get_db)
+    contact_id: str,
+    actor: Principal = Depends(principal),
+    db: Session = Depends(get_db, scope="function"),
 ) -> dict[str, Any]:
     return profile_context(db, contact_id)
 
@@ -211,7 +216,7 @@ def preferences(
     contact_id: str,
     body: PreferenceInput,
     actor: Principal = Depends(principal),
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db, scope="function"),
 ) -> dict[str, Any]:
     actor.require("write")
     require(db, Contact, contact_id)
@@ -256,7 +261,7 @@ def note(
     contact_id: str,
     body: NoteInput,
     actor: Principal = Depends(principal),
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db, scope="function"),
 ) -> dict[str, Any]:
     actor.require("write")
     contact = require(db, Contact, contact_id)
@@ -271,7 +276,9 @@ def note(
 
 @router.post("/contacts/{contact_id}/followup")
 def draft_followup(
-    contact_id: str, actor: Principal = Depends(principal), db: Session = Depends(get_db)
+    contact_id: str,
+    actor: Principal = Depends(principal),
+    db: Session = Depends(get_db, scope="function"),
 ) -> dict[str, Any]:
     actor.require("write")
     return public(followup(db, actor, require(db, Contact, contact_id)))
@@ -282,7 +289,7 @@ def availability(
     days: int = Query(7, ge=1, le=30),
     duration: int = Query(60, ge=15, le=240),
     actor: Principal = Depends(principal),
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db, scope="function"),
 ) -> dict[str, Any]:
     from zoneinfo import ZoneInfo
 

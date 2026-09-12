@@ -35,7 +35,9 @@ class DeleteInput(Input):
 
 
 @router.get("/members")
-def members(actor: Principal = Depends(principal), db: Session = Depends(get_db)) -> dict[str, Any]:
+def members(
+    actor: Principal = Depends(principal), db: Session = Depends(get_db, scope="function")
+) -> dict[str, Any]:
     rows = db.execute(select(Membership, User).join(User, User.id == Membership.user_id)).all()
     return {
         "items": [{"id": m.id, "name": u.name, "email": u.email, "role": m.role} for m, u in rows]
@@ -44,7 +46,9 @@ def members(actor: Principal = Depends(principal), db: Session = Depends(get_db)
 
 @router.post("/members")
 def add_member(
-    body: MemberInput, actor: Principal = Depends(principal), db: Session = Depends(get_db)
+    body: MemberInput,
+    actor: Principal = Depends(principal),
+    db: Session = Depends(get_db, scope="function"),
 ) -> dict[str, Any]:
     actor.require("members")
     if body.role == "admin" and actor.role != "owner":
@@ -69,7 +73,7 @@ def update_member(
     member_id: str,
     body: MemberInput,
     actor: Principal = Depends(principal),
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db, scope="function"),
 ) -> dict[str, Any]:
     actor.require("members")
     member = require(db, Membership, member_id)
@@ -84,7 +88,7 @@ def update_member(
 
 @router.get("/organizations")
 def organizations(
-    actor: Principal = Depends(principal), db: Session = Depends(get_db)
+    actor: Principal = Depends(principal), db: Session = Depends(get_db, scope="function")
 ) -> dict[str, Any]:
     # Explicit cross-organization identity lookup, scoped by the authenticated user.
     with Session(db.get_bind()) as identity_db:
@@ -98,7 +102,9 @@ def organizations(
 
 @router.post("/organizations/{org_id}/switch")
 def switch_organization(
-    org_id: str, actor: Principal = Depends(principal), db: Session = Depends(get_db)
+    org_id: str,
+    actor: Principal = Depends(principal),
+    db: Session = Depends(get_db, scope="function"),
 ) -> dict[str, bool]:
     with Session(db.get_bind()) as identity_db:
         membership = identity_db.scalar(
@@ -115,7 +121,9 @@ def switch_organization(
 
 
 @router.get("/export")
-def export(actor: Principal = Depends(principal), db: Session = Depends(get_db)) -> dict[str, Any]:
+def export(
+    actor: Principal = Depends(principal), db: Session = Depends(get_db, scope="function")
+) -> dict[str, Any]:
     actor.require("members")
     result: dict[str, Any] = {}
     for mapper in Base.registry.mappers:
@@ -140,7 +148,7 @@ def delete_account(
     body: DeleteInput,
     response: Response,
     actor: Principal = Depends(principal),
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db, scope="function"),
 ) -> dict[str, bool]:
     actor.require("delete_org")
     user, org = db.get(User, actor.user_id), db.get(Organization, actor.org_id)
@@ -180,12 +188,14 @@ def delete_account(
             db.execute(delete(table).where(table.c.org_id == actor.org_id))
     db.delete(org)
     db.flush()
-    with Session(db.get_bind()) as identity_db:
-        other = identity_db.scalar(
-            select(Membership.id).where(
-                Membership.user_id == actor.user_id, Membership.org_id != actor.org_id
-            )
+    # This identity-only lookup spans the caller's organizations. Keep it in this
+    # transaction; a second session can roll back a shared SQLite connection.
+    memberships = Membership.__table__.c
+    other = db.scalar(
+        select(memberships.id).where(
+            memberships.user_id == actor.user_id, memberships.org_id != actor.org_id
         )
+    )
     if not other:
         db.delete(user)
     response.delete_cookie("realty_session", path="/")

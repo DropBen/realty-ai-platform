@@ -76,6 +76,7 @@ def tenant_write_guard(session: Session, _: Any, __: Any) -> None:
 
 
 def get_db() -> Generator[Session, None, None]:
+    """Use function-scoped dependencies so writes commit before headers/cookies reach the client."""
     with SessionLocal() as session:
         try:
             yield session

@@ -1,5 +1,3 @@
-import json
-import logging
 import time
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -21,29 +19,9 @@ from realty import api_account, api_auth, api_crm, api_work
 from realty.config import settings
 from realty.db import SessionLocal
 from realty.errors import DomainError
+from realty.observability import configure_logging
 
-
-class JsonFormatter(logging.Formatter):
-    def format(self, record: logging.LogRecord) -> str:
-        return json.dumps(
-            {
-                "level": record.levelname,
-                "event": record.getMessage(),
-                **{
-                    k: getattr(record, k)
-                    for k in ["request_id", "status", "duration_ms", "job_id", "org_id", "code"]
-                    if hasattr(record, k)
-                },
-            }
-        )
-
-
-handler = logging.StreamHandler()
-handler.setFormatter(JsonFormatter())
-logger = logging.getLogger("realty")
-logger.handlers = [handler]
-logger.setLevel(settings.log_level)
-logger.propagate = False
+logger = configure_logging()
 
 
 @asynccontextmanager

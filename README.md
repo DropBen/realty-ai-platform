@@ -11,7 +11,7 @@ This is a tested foundation, **not a certified production release**. Live Google
 Prerequisites: Python 3.12+, Node.js 24 LTS, Git. Docker is optional.
 
 ```sh
-git clone https://github.com/DropBen/realty-ai-platform.git
+git clone --branch feat/realtyai-foundation https://github.com/DropBen/realty-ai-platform.git
 cd realty-ai-platform
 python -m venv .venv
 ```

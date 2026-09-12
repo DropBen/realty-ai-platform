@@ -33,13 +33,17 @@ router = APIRouter(tags=["Intelligence and operations"])
 
 
 @router.get("/briefing")
-def daily(actor: Principal = Depends(principal), db: Session = Depends(get_db)) -> dict[str, Any]:
+def daily(
+    actor: Principal = Depends(principal), db: Session = Depends(get_db, scope="function")
+) -> dict[str, Any]:
     return briefing(db)
 
 
 @router.post("/command")
 def ask(
-    body: CommandQuery, actor: Principal = Depends(principal), db: Session = Depends(get_db)
+    body: CommandQuery,
+    actor: Principal = Depends(principal),
+    db: Session = Depends(get_db, scope="function"),
 ) -> dict[str, Any]:
     return command(db, actor, body.question)
 
@@ -49,7 +53,7 @@ def action_list(
     status: str | None = None,
     page: int = Query(1, ge=1),
     actor: Principal = Depends(principal),
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db, scope="function"),
 ) -> dict[str, Any]:
     statement = select(AIAction)
     if status:
@@ -59,7 +63,9 @@ def action_list(
 
 @router.post("/actions", status_code=201)
 def action_create(
-    body: ActionInput, actor: Principal = Depends(principal), db: Session = Depends(get_db)
+    body: ActionInput,
+    actor: Principal = Depends(principal),
+    db: Session = Depends(get_db, scope="function"),
 ) -> dict[str, Any]:
     return public(actions.propose(db, actor, body))
 
@@ -69,7 +75,7 @@ def action_decision(
     action_id: str,
     body: Decision,
     actor: Principal = Depends(principal),
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db, scope="function"),
 ) -> dict[str, Any]:
     return public(actions.decide(db, actor, action_id, body))
 
@@ -79,7 +85,7 @@ def inbox(
     page: int = Query(1, ge=1),
     q: str = Query("", max_length=200),
     actor: Principal = Depends(principal),
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db, scope="function"),
 ) -> dict[str, Any]:
     statement = select(Communication)
     if q:
@@ -89,7 +95,9 @@ def inbox(
 
 @router.post("/inbox/{message_id}/analyze")
 def analyze(
-    message_id: str, actor: Principal = Depends(principal), db: Session = Depends(get_db)
+    message_id: str,
+    actor: Principal = Depends(principal),
+    db: Session = Depends(get_db, scope="function"),
 ) -> dict[str, Any]:
     actor.require("write")
     result = analyze_email(db, actor, require(db, Communication, message_id))
@@ -98,7 +106,7 @@ def analyze(
 
 @router.get("/integrations")
 def integrations(
-    actor: Principal = Depends(principal), db: Session = Depends(get_db)
+    actor: Principal = Depends(principal), db: Session = Depends(get_db, scope="function")
 ) -> dict[str, Any]:
     from realty.config import settings
 
@@ -116,7 +124,9 @@ def integrations(
 
 @router.post("/integrations/google/authorize")
 def google_authorize(
-    capability: str = "read", actor: Principal = Depends(principal), db: Session = Depends(get_db)
+    capability: str = "read",
+    actor: Principal = Depends(principal),
+    db: Session = Depends(get_db, scope="function"),
 ) -> dict[str, str]:
     return {"url": google.authorize(db, actor, capability)}
 
@@ -127,7 +137,7 @@ def google_callback(
     state: str = "",
     error: str = "",
     actor: Principal = Depends(principal),
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db, scope="function"),
 ) -> RedirectResponse:
     from realty.config import settings
 
@@ -139,7 +149,7 @@ def google_callback(
 
 @router.post("/integrations/google/disconnect")
 def google_disconnect(
-    actor: Principal = Depends(principal), db: Session = Depends(get_db)
+    actor: Principal = Depends(principal), db: Session = Depends(get_db, scope="function")
 ) -> dict[str, bool]:
     google.disconnect(db, actor)
     return {"ok": True}
@@ -147,7 +157,9 @@ def google_disconnect(
 
 @router.post("/integrations/google/sync")
 def google_sync(
-    resource: str = "gmail", actor: Principal = Depends(principal), db: Session = Depends(get_db)
+    resource: str = "gmail",
+    actor: Principal = Depends(principal),
+    db: Session = Depends(get_db, scope="function"),
 ) -> dict[str, Any]:
     actor.require("external")
     google.GoogleClient(db, actor)  # fail clearly before queuing when disconnected or unconfigured
@@ -165,7 +177,7 @@ def google_sync(
 
 @router.get("/integrations/google/calendars")
 def calendars(
-    actor: Principal = Depends(principal), db: Session = Depends(get_db)
+    actor: Principal = Depends(principal), db: Session = Depends(get_db, scope="function")
 ) -> dict[str, Any]:
     client = google.GoogleClient(db, actor)
     items, _ = google.pages(client, "calendar/v3/users/me/calendarList", {}, "items")
@@ -182,7 +194,7 @@ def document_list(
     q: str = Query("", max_length=200),
     page: int = Query(1, ge=1),
     actor: Principal = Depends(principal),
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db, scope="function"),
 ) -> dict[str, Any]:
     statement = select(Document)
     if q:
@@ -197,7 +209,7 @@ async def document_upload(
     file: UploadFile = File(...),
     contact_id: str | None = Form(None),
     actor: Principal = Depends(principal),
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db, scope="function"),
 ) -> dict[str, Any]:
     content = await file.read(documents.MAX_UPLOAD + 1)
     document = documents.upload(db, actor, file.filename or "document", content, contact_id)
@@ -214,7 +226,9 @@ async def document_upload(
 
 @router.get("/documents/{document_id}/download")
 def document_download(
-    document_id: str, actor: Principal = Depends(principal), db: Session = Depends(get_db)
+    document_id: str,
+    actor: Principal = Depends(principal),
+    db: Session = Depends(get_db, scope="function"),
 ) -> Response:
     from urllib.parse import quote
 
@@ -229,7 +243,9 @@ def document_download(
 
 @router.post("/documents/{document_id}/summarize")
 def document_summary(
-    document_id: str, actor: Principal = Depends(principal), db: Session = Depends(get_db)
+    document_id: str,
+    actor: Principal = Depends(principal),
+    db: Session = Depends(get_db, scope="function"),
 ) -> dict[str, Any]:
     actor.require("write")
     document = require(db, Document, document_id)
@@ -257,7 +273,9 @@ def document_summary(
 
 @router.delete("/documents/{document_id}")
 def document_delete(
-    document_id: str, actor: Principal = Depends(principal), db: Session = Depends(get_db)
+    document_id: str,
+    actor: Principal = Depends(principal),
+    db: Session = Depends(get_db, scope="function"),
 ) -> dict[str, bool]:
     actor.require("write")
     document = require(db, Document, document_id)
@@ -269,14 +287,16 @@ def document_delete(
 
 @router.get("/notifications")
 def notifications(
-    actor: Principal = Depends(principal), db: Session = Depends(get_db)
+    actor: Principal = Depends(principal), db: Session = Depends(get_db, scope="function")
 ) -> dict[str, Any]:
     return paginate(db, select(Notification).order_by(Notification.created_at.desc()), 1, 100)
 
 
 @router.post("/notifications/{notification_id}/read")
 def notification_read(
-    notification_id: str, actor: Principal = Depends(principal), db: Session = Depends(get_db)
+    notification_id: str,
+    actor: Principal = Depends(principal),
+    db: Session = Depends(get_db, scope="function"),
 ) -> dict[str, Any]:
     item = require(db, Notification, notification_id)
     item.read = True
@@ -285,7 +305,7 @@ def notification_read(
 
 @router.get("/analytics")
 def analytics(
-    actor: Principal = Depends(principal), db: Session = Depends(get_db)
+    actor: Principal = Depends(principal), db: Session = Depends(get_db, scope="function")
 ) -> dict[str, Any]:
     stages = db.execute(
         select(Deal.stage, func.count(Deal.id), func.sum(Deal.value)).group_by(Deal.stage)
@@ -303,21 +323,27 @@ def analytics(
 
 @router.get("/audit")
 def audit_list(
-    page: int = Query(1, ge=1), actor: Principal = Depends(principal), db: Session = Depends(get_db)
+    page: int = Query(1, ge=1),
+    actor: Principal = Depends(principal),
+    db: Session = Depends(get_db, scope="function"),
 ) -> dict[str, Any]:
     actor.require("members")
     return paginate(db, select(Audit).order_by(Audit.created_at.desc()), page, 50)
 
 
 @router.get("/jobs")
-def jobs(actor: Principal = Depends(principal), db: Session = Depends(get_db)) -> dict[str, Any]:
+def jobs(
+    actor: Principal = Depends(principal), db: Session = Depends(get_db, scope="function")
+) -> dict[str, Any]:
     actor.require("members")
     return paginate(db, select(Job).order_by(Job.created_at.desc()), 1, 50)
 
 
 @router.post("/jobs/{job_id}/retry")
 def retry_job(
-    job_id: str, actor: Principal = Depends(principal), db: Session = Depends(get_db)
+    job_id: str,
+    actor: Principal = Depends(principal),
+    db: Session = Depends(get_db, scope="function"),
 ) -> dict[str, Any]:
     actor.require("members")
     job = require(db, Job, job_id)
@@ -332,14 +358,16 @@ def retry_job(
 
 @router.get("/workflows")
 def workflows(
-    actor: Principal = Depends(principal), db: Session = Depends(get_db)
+    actor: Principal = Depends(principal), db: Session = Depends(get_db, scope="function")
 ) -> dict[str, Any]:
     return paginate(db, select(Workflow).order_by(Workflow.name), 1, 100)
 
 
 @router.post("/workflows")
 def workflow_create(
-    body: WorkflowInput, actor: Principal = Depends(principal), db: Session = Depends(get_db)
+    body: WorkflowInput,
+    actor: Principal = Depends(principal),
+    db: Session = Depends(get_db, scope="function"),
 ) -> dict[str, Any]:
     actor.require("members")
     row = Workflow(org_id=actor.org_id, **body.model_dump())
@@ -354,7 +382,7 @@ def workflow_update(
     workflow_id: str,
     body: WorkflowInput,
     actor: Principal = Depends(principal),
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db, scope="function"),
 ) -> dict[str, Any]:
     actor.require("members")
     row = require(db, Workflow, workflow_id)
@@ -366,7 +394,7 @@ def workflow_update(
 
 @router.get("/billing")
 def billing_state(
-    actor: Principal = Depends(principal), db: Session = Depends(get_db)
+    actor: Principal = Depends(principal), db: Session = Depends(get_db, scope="function")
 ) -> dict[str, Any]:
     actor.require("billing")
     row = db.scalar(select(Subscription))
@@ -375,21 +403,23 @@ def billing_state(
 
 @router.post("/billing/checkout")
 def billing_checkout(
-    request_id: UUID, actor: Principal = Depends(principal), db: Session = Depends(get_db)
+    request_id: UUID,
+    actor: Principal = Depends(principal),
+    db: Session = Depends(get_db, scope="function"),
 ) -> dict[str, str]:
     return {"url": billing.checkout(db, actor, str(request_id))}
 
 
 @router.post("/billing/portal")
 def billing_portal(
-    actor: Principal = Depends(principal), db: Session = Depends(get_db)
+    actor: Principal = Depends(principal), db: Session = Depends(get_db, scope="function")
 ) -> dict[str, str]:
     return {"url": billing.portal(db, actor)}
 
 
 @router.get("/billing/invoices")
 def invoices(
-    actor: Principal = Depends(principal), db: Session = Depends(get_db)
+    actor: Principal = Depends(principal), db: Session = Depends(get_db, scope="function")
 ) -> dict[str, Any]:
     subscription = billing.customer(db, actor)
     result = billing.stripe_request(
@@ -410,7 +440,9 @@ def invoices(
 
 
 @router.post("/webhooks/stripe", include_in_schema=False)
-async def stripe_webhook(request: Request, db: Session = Depends(get_db)) -> dict[str, bool]:
+async def stripe_webhook(
+    request: Request, db: Session = Depends(get_db, scope="function")
+) -> dict[str, bool]:
     payload = await request.body()
     if len(payload) > 1_000_000:
         raise DomainError("payload_too_large", "Webhook payload exceeds limit.", 413)

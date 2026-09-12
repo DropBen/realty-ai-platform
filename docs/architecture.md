@@ -22,6 +22,8 @@ flowchart LR
 
 ## Decisions
 
+Database dependencies use FastAPI's function scope, committing before response headers and session cookies are sent. This prevents a follow-up browser request from racing an uncommitted session and allows commit failures to return an error. See [FastAPI dependency scopes](https://fastapi.tiangolo.com/tutorial/dependencies/dependencies-with-yield/#early-exit-and-scope).
+
 **Modular monolith:** FastAPI serves versioned endpoints and the built React assets. Separate routers cover identity, CRM, work and account lifecycle. Services handle actions, intelligence, Google, billing, documents and jobs. This avoids premature service boundaries while separating API and background execution operationally.
 
 **Python + TypeScript:** Pydantic validates inputs and provider output; SQLAlchemy models relational state; React and TypeScript provide a typed interaction layer. PostgreSQL is the production database. SQLite is restricted to development/test workloads. Alembic migrations freeze schema changes. The frontend uses TanStack Query for server state and an explicit API client; it does not persist customer records in browser storage.

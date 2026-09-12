@@ -16,6 +16,7 @@ test("demo dashboard, navigation and mobile fit", async ({
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
   await signIn(page);
+  await page.getByRole("button", { name: "Dismiss notification" }).click();
   await expect(
     page.getByText(
       "Demo workspace · Fictional data. External sending is disabled.",
@@ -74,7 +75,7 @@ test("create contact, record a preference, and see timeline", async ({
     .getByRole("link", { name: new RegExp(name) })
     .first()
     .click();
-  await expect(page.getByRole("heading", { name })).toBeVisible();
+  await expect(page.getByRole("heading", { name, exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Edit", exact: true }).click();
   await page.getByLabel("Maximum budget").fill("680000");
   await page.getByLabel("Preferred location").fill("Hartford");
@@ -132,11 +133,9 @@ test("approval executes once and appears in timeline", async ({ page }) => {
     return response.json();
   });
   await page.goto("/actions");
-  const card = page
-    .locator("article")
-    .filter({
-      has: page.getByRole("heading", { name: proposal.title, exact: true }),
-    });
+  const card = page.locator("article").filter({
+    has: page.getByRole("heading", { name: proposal.title, exact: true }),
+  });
   await card.getByRole("button", { name: "Review suggestion" }).click();
   await page
     .getByRole("button", { name: "Approve action", exact: true })

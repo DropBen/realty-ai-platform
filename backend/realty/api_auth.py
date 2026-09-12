@@ -26,7 +26,10 @@ router = APIRouter(prefix="/auth", tags=["Authentication"])
 
 @router.post("/register", status_code=201)
 def register(
-    data: Register, request: Request, response: Response, db: Session = Depends(get_db)
+    data: Register,
+    request: Request,
+    response: Response,
+    db: Session = Depends(get_db, scope="function"),
 ) -> dict[str, Any]:
     rate_limit(db, "register:" + (request.client.host if request.client else "unknown"), 5)
     db.commit()
@@ -49,7 +52,10 @@ def register(
 
 @router.post("/login")
 def login(
-    data: Login, request: Request, response: Response, db: Session = Depends(get_db)
+    data: Login,
+    request: Request,
+    response: Response,
+    db: Session = Depends(get_db, scope="function"),
 ) -> dict[str, Any]:
     rate_limit(db, "login:" + (request.client.host if request.client else "unknown"), 10)
     db.commit()
@@ -80,7 +86,9 @@ def login(
 
 
 @router.get("/me")
-def me(actor: Principal = Depends(principal), db: Session = Depends(get_db)) -> dict[str, Any]:
+def me(
+    actor: Principal = Depends(principal), db: Session = Depends(get_db, scope="function")
+) -> dict[str, Any]:
     return {
         "user": public(db.get(User, actor.user_id)),
         "organization": public(db.get(Organization, actor.org_id)),
@@ -91,7 +99,9 @@ def me(actor: Principal = Depends(principal), db: Session = Depends(get_db)) -> 
 
 @router.post("/logout")
 def logout(
-    response: Response, actor: Principal = Depends(principal), db: Session = Depends(get_db)
+    response: Response,
+    actor: Principal = Depends(principal),
+    db: Session = Depends(get_db, scope="function"),
 ) -> dict[str, bool]:
     db.execute(delete(OAuthState).where(OAuthState.session_id == actor.session_id))
     db.execute(delete(LoginSession).where(LoginSession.id == actor.session_id))

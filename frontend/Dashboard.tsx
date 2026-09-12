@@ -33,6 +33,16 @@ export default function Dashboard() {
     return <ErrorState error={query.error} retry={() => query.refetch()} />;
   if (!query.data) return null;
   const data = query.data;
+  const zone = session.organization.timezone;
+  const localDate = (options: Intl.DateTimeFormatOptions) =>
+    new Date().toLocaleDateString("en-US", { ...options, timeZone: zone });
+  const hour = Number(
+    new Intl.DateTimeFormat("en-US", {
+      hour: "numeric",
+      hourCycle: "h23",
+      timeZone: zone,
+    }).format(new Date()),
+  );
   const ask = (e: FormEvent) => {
     e.preventDefault();
     if (question.trim()) navigate("/command?q=" + encodeURIComponent(question));
@@ -41,7 +51,7 @@ export default function Dashboard() {
     <div className="dashboard">
       <div className="dashboard-heading">
         <div className="eyebrow">
-          {new Date().toLocaleDateString("en-US", {
+          {localDate({
             weekday: "long",
             month: "long",
             day: "numeric",
@@ -50,12 +60,7 @@ export default function Dashboard() {
         <div className="greeting-row">
           <div>
             <h1>
-              Good{" "}
-              {new Date().getHours() < 12
-                ? "morning"
-                : new Date().getHours() < 18
-                  ? "afternoon"
-                  : "evening"}
+              Good {hour < 12 ? "morning" : hour < 18 ? "afternoon" : "evening"}
               , {session.user.name.split(" ")[0]}
               <span className="greeting-dot">.</span>
             </h1>
@@ -225,11 +230,11 @@ export default function Dashboard() {
               </Link>
             </div>
             <div className="agenda-date">
-              <strong>{new Date().getDate()}</strong>
+              <strong>{localDate({ day: "numeric" })}</strong>
               <div>
-                {new Date().toLocaleDateString("en-US", { weekday: "long" })}
+                {localDate({ weekday: "long" })}
                 <small>
-                  {new Date().toLocaleDateString("en-US", {
+                  {localDate({
                     month: "long",
                     year: "numeric",
                   })}
@@ -245,7 +250,9 @@ export default function Dashboard() {
                   key={a.id}
                 >
                   <span className="agenda-line" />
-                  <div className="agenda-time">{time(a.start_at)}</div>
+                  <div className="agenda-time" title={zone}>
+                    {time(a.start_at, zone)}
+                  </div>
                   <strong>{a.title}</strong>
                   <span>{a.location || "Location not set"}</span>
                   <small>

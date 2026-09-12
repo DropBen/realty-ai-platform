@@ -94,7 +94,7 @@ def rate_limit(db: Session, key: str, limit: int = 120) -> None:
     db.flush()
 
 
-def principal(request: Request, db: Session = Depends(get_db)) -> Principal:
+def principal(request: Request, db: Session = Depends(get_db, scope="function")) -> Principal:
     token = request.cookies.get("realty_session", "")
     session = db.scalar(
         select(LoginSession).where(

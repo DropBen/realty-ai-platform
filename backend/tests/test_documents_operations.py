@@ -117,7 +117,7 @@ def test_fixed_window_rate_limit(factory):
         assert exc.value.status == 429
 
 
-def test_export_redacts_credentials_and_account_delete(client, account, contact):
+def test_export_redacts_credentials_and_account_delete(client, account, contact, factory):
     export = client.get("/api/v1/account/export")
     assert export.status_code == 200
     assert "password_hash" not in export.text and "token_ciphertext" not in export.text
@@ -131,6 +131,12 @@ def test_export_redacts_credentials_and_account_delete(client, account, contact)
     )
     assert deleted.status_code == 200, deleted.text
     assert client.get("/api/v1/auth/me").status_code == 401
+    from realty.models import Contact, Organization, User
+
+    with factory() as db:
+        assert db.get(Organization, account["organization"]["id"]) is None
+        assert db.get(Contact, contact["id"]) is None
+        assert db.get(User, account["user"]["id"]) is None
 
 
 def test_billing_client_cannot_grant_entitlement(client, account, factory):

@@ -311,6 +311,9 @@ def schedule_recurring() -> None:
 
 
 def main() -> None:
+    from realty.observability import configure_logging
+
+    configure_logging()
     last_sweep = 0.0
     while True:
         if time.monotonic() - last_sweep > 3600:
